@@ -1,0 +1,11 @@
+python-dotenv
+streamlit
+langchain
+langchain-community
+openai
+langchain-openai
+langchain-groq
+flask
+flask-cors
+pdfplumber
+groq
