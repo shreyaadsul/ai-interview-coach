@@ -175,7 +175,8 @@ Here is the conversation history so far:
 {json.dumps(history, indent=2)}
 
 Based on the candidate's LAST answer, generate EXACTLY ONE logical follow-up question. 
-If the previous answer was poor or incomplete, you can dig deeper. 
+If the candidate's last answer indicates they don't know the answer (e.g., "I don't know", "skip", "not sure"), DO NOT ask them about the same topic again. Move on to a completely different topic or skill from their resume.
+If the previous answer was poor or incomplete but they tried, you can dig deeper. 
 If it was good, you can move on to a new topic relevant to the Interview Setup.
 Do not evaluate the answer to the candidate, just ask the next question naturally.
 
@@ -271,7 +272,14 @@ Response Format:
   "problem_solving_score": 0,
   "strengths": [],
   "weaknesses": [],
-  "suggestions": []
+  "suggestions": [],
+  "detailed_feedback": [
+    {{
+      "question": "string",
+      "feedback": "string",
+      "score": 0
+    }}
+  ]
 }}
 """
     try:

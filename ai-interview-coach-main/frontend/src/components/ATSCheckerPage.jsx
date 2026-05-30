@@ -5,12 +5,12 @@ import KeywordBadge from './KeywordBadge';
 import SuggestionCard from './SuggestionCard';
 import { ArrowLeft, RefreshCw, FileText } from 'lucide-react';
 
-export default function ATSCheckerPage() {
+export default function ATSCheckerPage({ setResumeData }) {
   const [isUploaded, setIsUploaded] = useState(false);
   const [fileName, setFileName] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState({
-    atsScore: 82,
+    atsScore: 0,
     missingKeywords: [],
     suggestions: []
   });
@@ -35,6 +35,14 @@ export default function ATSCheckerPage() {
           missingKeywords: data.missingKeywords || [],
           suggestions: data.suggestions || []
         });
+        if (setResumeData) {
+          setResumeData(prev => ({
+            ...prev,
+            resume_score: data.atsScore || prev.resume_score,
+            ats_missing_keywords: data.missingKeywords || [],
+            ats_suggestions: data.suggestions || []
+          }));
+        }
       } else {
         throw new Error("Failed to analyze ATS compatibility.");
       }

@@ -14,14 +14,24 @@ const CustomTooltip = ({ active, payload }) => {
   return null;
 };
 
-export default function PerformanceRadar({ resumeData }) {
+export default function PerformanceRadar({ resumeData, history }) {
+  const latestSession = history && history.length > 0 ? history[0] : null;
   const baseScore = resumeData?.resume_score || 75;
+  const currentScore = latestSession ? (latestSession.score || 0) : baseScore;
+  
+  const tsScore = latestSession?.report?.technical_score || (currentScore > 0 ? Math.min(100, currentScore + 7) : 85);
+  const commScore = latestSession?.report?.communication_score || (currentScore > 0 ? Math.max(0, currentScore - 8) : 70);
+  const psScore = latestSession?.report?.problem_solving_score || (currentScore > 0 ? Math.min(100, currentScore + 2) : 80);
+  const confScore = latestSession?.report?.confidence_score || (currentScore > 0 ? Math.max(0, currentScore - 3) : 75);
+  // Optional: add a leadership proxy if not explicitly in report
+  const leadScore = Math.max(0, currentScore - 10);
+
   const dynamicData = [
-    { subject: 'Technical Skills', A: Math.min(100, baseScore + 7), B: 65, fullMark: 100 },
-    { subject: 'Communication', A: Math.max(0, baseScore - 8), B: 60, fullMark: 100 },
-    { subject: 'Problem Solving', A: Math.min(100, baseScore + 2), B: 55, fullMark: 100 },
-    { subject: 'Confidence', A: Math.max(0, baseScore - 3), B: 60, fullMark: 100 },
-    { subject: 'Leadership', A: Math.max(0, baseScore - 10), B: 50, fullMark: 100 },
+    { subject: 'Technical Skills', A: tsScore, B: 65, fullMark: 100 },
+    { subject: 'Communication', A: commScore, B: 60, fullMark: 100 },
+    { subject: 'Problem Solving', A: psScore, B: 55, fullMark: 100 },
+    { subject: 'Confidence', A: confScore, B: 60, fullMark: 100 },
+    { subject: 'Leadership', A: leadScore, B: 50, fullMark: 100 },
   ];
 
   return (

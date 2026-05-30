@@ -26,24 +26,37 @@ const ProgressBar = ({ label, value, colorClass }) => (
   </div>
 );
 
-export default function ScoreBreakdown({ resumeData }) {
-  const currentScore = resumeData?.resume_score || 78;
-  const dynamicHistoryData = [
-    { attempt: 'Attempt 1', score: 65 },
-    { attempt: 'Attempt 2', score: 72 },
-    { attempt: 'Attempt 3', score: 85 },
-    { attempt: 'Current', score: currentScore },
-  ];
+export default function ScoreBreakdown({ resumeData, history }) {
+  const latestSession = history && history.length > 0 ? history[0] : null;
+  const currentScore = latestSession ? (latestSession.score || 0) : (resumeData?.resume_score || 78);
+  
+  // Calculate historical chart data from history array (max 5 items, reverse to get oldest first)
+  const dynamicHistoryData = history && history.length > 0
+    ? [...history].slice(0, 5).reverse().map((session, index, arr) => ({
+        attempt: index === arr.length - 1 ? 'Current' : `Attempt ${index + 1}`,
+        score: session.score || 0
+      }))
+    : [
+        { attempt: 'Attempt 1', score: 65 },
+        { attempt: 'Attempt 2', score: 72 },
+        { attempt: 'Attempt 3', score: 85 },
+        { attempt: 'Current', score: currentScore },
+      ];
+      
+  const tsScore = latestSession?.report?.technical_score || (currentScore > 0 ? Math.min(100, currentScore + 7) : 85);
+  const commScore = latestSession?.report?.communication_score || (currentScore > 0 ? Math.max(0, currentScore - 8) : 70);
+  const psScore = latestSession?.report?.problem_solving_score || (currentScore > 0 ? Math.min(100, currentScore + 2) : 80);
+  const confScore = latestSession?.report?.confidence_score || (currentScore > 0 ? Math.max(0, currentScore - 3) : 75);
 
   return (
     <div className="glass-card p-6 h-full flex flex-col">
       <h2 className="text-lg font-semibold text-white mb-6">Score Breakdown</h2>
       
       <div className="mb-8">
-        <ProgressBar label="Technical Skills" value={currentScore > 0 ? Math.min(100, currentScore + 7) : 85} colorClass="bg-blue-500" />
-        <ProgressBar label="Communication" value={currentScore > 0 ? Math.max(0, currentScore - 8) : 70} colorClass="bg-purple-500" />
-        <ProgressBar label="Problem Solving" value={currentScore > 0 ? Math.min(100, currentScore + 2) : 80} colorClass="bg-green-500" />
-        <ProgressBar label="Confidence" value={currentScore > 0 ? Math.max(0, currentScore - 3) : 75} colorClass="bg-orange-500" />
+        <ProgressBar label="Technical Skills" value={tsScore} colorClass="bg-blue-500" />
+        <ProgressBar label="Communication" value={commScore} colorClass="bg-purple-500" />
+        <ProgressBar label="Problem Solving" value={psScore} colorClass="bg-green-500" />
+        <ProgressBar label="Confidence" value={confScore} colorClass="bg-orange-500" />
       </div>
 
       <div className="flex-grow flex flex-col">

@@ -19,6 +19,7 @@ export default function MockInterviewPage({
   const [warnings, setWarnings] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
   const [warningMessage, setWarningMessage] = useState("");
+  const showWarningRef = useRef(false);
 
   // MediaPipe & Video states
   const videoRef = useRef(null);
@@ -43,29 +44,36 @@ export default function MockInterviewPage({
 
   const handleViolation = useCallback((message = "You have switched tabs, exited full-screen, or lost focus.") => {
     // Don't trigger if already showing warning
-    if (showWarning) return;
+    if (showWarningRef.current) return;
+    showWarningRef.current = true;
     
     setWarningMessage(message);
-    if (warnings >= 2) {
-      setWarnings(3);
-      alert("You have exceeded the maximum number of warnings. The interview will now be automatically submitted.");
-      handleForceSubmit(true);
-    } else {
-      setWarnings(prev => prev + 1);
+    setWarnings(prev => {
+      if (prev >= 2) {
+        alert("You have exceeded the maximum number of warnings. The interview will now be automatically submitted.");
+        handleForceSubmit(true);
+        return 3;
+      }
       setShowWarning(true);
-    }
-  }, [showWarning, warnings, handleForceSubmit]);
+      return prev + 1;
+    });
+  }, [handleForceSubmit]);
 
   // Anti-cheat event listeners (Browser focus/fullscreen)
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden) handleViolation();
+      if (document.hidden) handleViolation("You switched tabs or minimized the window.");
     };
     const handleBlur = () => {
-      handleViolation();
+      // Small delay to allow permissions popups without instantly striking
+      setTimeout(() => {
+        if (!document.hasFocus()) {
+          handleViolation("You clicked outside the interview window or lost focus.");
+        }
+      }, 500);
     };
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement) handleViolation();
+      if (!document.fullscreenElement) handleViolation("You exited full-screen mode.");
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -77,7 +85,8 @@ export default function MockInterviewPage({
       window.removeEventListener("blur", handleBlur);
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
     };
-  }, [handleViolation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Timer
   useEffect(() => {
@@ -93,6 +102,7 @@ export default function MockInterviewPage({
 
   // Initialize MediaPipe and Camera
   useEffect(() => {
+    let isMounted = true;
     const initializeMediaPipe = async () => {
       try {
         const vision = await FilesetResolver.forVisionTasks(
@@ -108,29 +118,42 @@ export default function MockInterviewPage({
           runningMode: "VIDEO",
           numFaces: 1
         });
+        
+        if (!isMounted) {
+          landmarker.close();
+          return;
+        }
         faceLandmarkerRef.current = landmarker;
         setIsModelLoading(false);
 
         // Start camera
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (!isMounted) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
       } catch (err) {
         console.error("Camera or MediaPipe init failed", err);
-        handleViolation("Camera disconnected or unavailable.");
+        if (isMounted) {
+          handleViolation("Camera disconnected, denied, or unavailable.");
+        }
       }
     };
 
     initializeMediaPipe();
 
     return () => {
+      isMounted = false;
       if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
       if (faceLandmarkerRef.current) faceLandmarkerRef.current.close();
     };
-  }, [handleViolation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleVideoLoad = () => {
     let lastVideoTime = -1;
@@ -141,38 +164,47 @@ export default function MockInterviewPage({
         let startTimeMs = performance.now();
         if (lastVideoTime !== videoRef.current.currentTime) {
           lastVideoTime = videoRef.current.currentTime;
-          const results = faceLandmarkerRef.current.detectForVideo(videoRef.current, startTimeMs);
           
-          if (results.facialTransformationMatrixes && results.facialTransformationMatrixes.length > 0) {
-            const matrix = results.facialTransformationMatrixes[0].data;
-            const yaw = Math.atan2(matrix[8], matrix[10]);
-            const pitch = Math.atan2(-matrix[9], Math.sqrt(matrix[8] ** 2 + matrix[10] ** 2));
+          try {
+            const results = faceLandmarkerRef.current.detectForVideo(videoRef.current, startTimeMs);
             
-            const yawDegrees = (yaw * 180) / Math.PI;
-            const pitchDegrees = (pitch * 180) / Math.PI;
+            if (results.facialTransformationMatrixes && results.facialTransformationMatrixes.length > 0) {
+              const matrix = results.facialTransformationMatrixes[0].data;
+              const yaw = Math.atan2(matrix[8], matrix[10]);
+              const pitch = Math.atan2(-matrix[9], Math.sqrt(matrix[8] ** 2 + matrix[10] ** 2));
+              
+              const yawDegrees = (yaw * 180) / Math.PI;
+              const pitchDegrees = (pitch * 180) / Math.PI;
 
-            // Threshold for looking away (e.g. 25 degrees)
-            if (Math.abs(yawDegrees) > 25 || Math.abs(pitchDegrees) > 25) {
-              awayFrames++;
+              // Threshold for looking away (relaxed to 35 degrees)
+              if (Math.abs(yawDegrees) > 35 || Math.abs(pitchDegrees) > 35) {
+                awayFrames++;
+              } else {
+                awayFrames = 0;
+              }
+
+              // Running at ~4 FPS, 8 frames = ~2 seconds
+              if (awayFrames > 8) { 
+                 handleViolation("AI Head Tracking detected you looking away from the screen!");
+                 awayFrames = 0; // reset
+              }
+              setLookingAway(awayFrames > 2);
             } else {
-              awayFrames = 0;
+              // No face detected
+              awayFrames++;
+              if (awayFrames > 12) { // ~3 seconds of no face at 4 FPS
+                 handleViolation("AI could not detect your face. Please stay in frame.");
+                 awayFrames = 0;
+              }
             }
-
-            if (awayFrames > 30) { // ~1 second of looking away
-               handleViolation("AI Head Tracking detected you looking away from the screen!");
-               awayFrames = 0; // reset
-            }
-            setLookingAway(awayFrames > 10);
-          } else {
-            // No face detected
-            awayFrames++;
-            if (awayFrames > 90) { // ~3 seconds of no face
-               handleViolation("AI could not detect your face. Please stay in frame.");
-               awayFrames = 0;
-            }
+          } catch(e) {
+            console.error("Face landmark error:", e);
           }
         }
-        animationRef.current = requestAnimationFrame(predictWebcam);
+        // Throttle to ~4 FPS to prevent UI lagging
+        setTimeout(() => {
+          animationRef.current = requestAnimationFrame(predictWebcam);
+        }, 250);
       }
     };
     predictWebcam();
@@ -252,6 +284,9 @@ export default function MockInterviewPage({
       }
     } catch (err) {}
     setShowWarning(false);
+    setTimeout(() => {
+      showWarningRef.current = false;
+    }, 1000); // Wait a second before unlocking to prevent rapid firing
   };
 
   const isLastQuestion = questionNumber === questions.length;

@@ -141,6 +141,7 @@ function App() {
       const newSession = {
         id: Date.now().toString(),
         date: new Date().toLocaleDateString(),
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         role: currentSessionConfig?.target_role || "General",
         score: 0,
         duration: `Disqualified`,
@@ -149,6 +150,7 @@ function App() {
       };
       setInterviewHistory([newSession, ...interviewHistory]);
       
+      setDynamicQuestions([]);
       setCurrentPage('Interview Report');
       setIsEvaluating(false);
       return;
@@ -167,6 +169,7 @@ function App() {
         const newSession = {
           id: Date.now().toString(),
           date: new Date().toLocaleDateString(),
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           role: currentSessionConfig?.target_role || "General",
           score: report.overall_score || 0,
           duration: `30 Mins`,
@@ -175,6 +178,7 @@ function App() {
         };
         setInterviewHistory([newSession, ...interviewHistory]);
         
+        setDynamicQuestions([]);
         setCurrentPage('Interview Report');
       } else {
         console.error("Evaluation failed.");
@@ -250,16 +254,16 @@ function App() {
                   <ResumeAnalysis resumeData={resumeData} />
                 </div>
                 <div className="lg:col-span-2">
-                  <PerformanceRadar resumeData={resumeData} />
+                  <PerformanceRadar resumeData={resumeData} history={interviewHistory} />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                 <div className="lg:col-span-2">
-                  <QuestionAnalysis resumeData={resumeData} />
+                  <QuestionAnalysis resumeData={resumeData} history={interviewHistory} />
                 </div>
                 <div className="lg:col-span-1">
-                  <ScoreBreakdown resumeData={resumeData} />
+                  <ScoreBreakdown resumeData={resumeData} history={interviewHistory} />
                 </div>
               </div>
 
@@ -361,7 +365,7 @@ function App() {
               transition={{ duration: 0.5 }}
               className="max-w-7xl mx-auto"
             >
-              <ATSCheckerPage />
+              <ATSCheckerPage setResumeData={setResumeData} />
             </motion.div>
           ) : currentPage === 'Interview History' ? (
             <motion.div
