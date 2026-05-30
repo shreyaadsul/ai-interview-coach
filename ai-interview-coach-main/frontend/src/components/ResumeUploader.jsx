@@ -17,7 +17,7 @@ export default function ResumeUploader({ onUploadSuccess }) {
 
   const processFile = (file) => {
     if (file && file.type === "application/pdf") {
-      onUploadSuccess(file.name);
+      onUploadSuccess(file.name, file);
     } else {
       alert("Please upload a PDF file only.");
     }

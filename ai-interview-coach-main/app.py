@@ -107,5 +107,235 @@ Return ONLY JSON."""
         print(f"Error in analyze_resume: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/generate-questions', methods=['POST'])
+def generate_questions():
+    if not request.json or 'resume_data' not in request.json:
+        return jsonify({"error": "No resume_data provided"}), 400
+        
+    resume_data = request.json['resume_data']
+    target_role = request.json.get('target_role', 'General')
+    interview_type = request.json.get('interview_type', 'Mixed')
+    difficulty = request.json.get('difficulty', 'Intermediate')
+    
+    if not client:
+        return jsonify({"error": "AI service temporarily unavailable. GROQ_API_KEY is not set."}), 500
+
+    prompt = f"""You are an expert technical interviewer.
+Based on the candidate resume information below:
+{json.dumps(resume_data, indent=2)}
+
+Interview Setup:
+- Target Role: {target_role}
+- Interview Type: {interview_type} (e.g. HR, Technical, Project, Mixed)
+- Difficulty: {difficulty}
+
+Generate EXACTLY ONE personalized introductory interview question tailored to the setup to start the interview.
+Return ONLY JSON.
+
+Response Format:
+{{
+  "question": "The question string here"
+}}
+"""
+    try:
+        chat_completion = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="llama-3.1-8b-instant",
+            response_format={"type": "json_object"}
+        )
+        ai_response = chat_completion.choices[0].message.content
+        return jsonify(json.loads(ai_response))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/next-question', methods=['POST'])
+def next_question():
+    if not request.json or 'resume_data' not in request.json or 'history' not in request.json:
+        return jsonify({"error": "Missing required data"}), 400
+        
+    resume_data = request.json['resume_data']
+    history = request.json['history']  # List of {"question": ..., "answer": ...}
+    target_role = request.json.get('target_role', 'General')
+    interview_type = request.json.get('interview_type', 'Mixed')
+    difficulty = request.json.get('difficulty', 'Intermediate')
+    
+    if not client:
+        return jsonify({"error": "AI service temporarily unavailable."}), 500
+
+    prompt = f"""You are an expert technical interviewer conducting a mock interview.
+Candidate Profile:
+{json.dumps(resume_data, indent=2)}
+
+Interview Setup:
+- Target Role: {target_role}
+- Interview Type: {interview_type}
+- Difficulty: {difficulty}
+
+Here is the conversation history so far:
+{json.dumps(history, indent=2)}
+
+Based on the candidate's LAST answer, generate EXACTLY ONE logical follow-up question. 
+If the previous answer was poor or incomplete, you can dig deeper. 
+If it was good, you can move on to a new topic relevant to the Interview Setup.
+Do not evaluate the answer to the candidate, just ask the next question naturally.
+
+Return ONLY JSON.
+
+Response Format:
+{{
+  "question": "The next question string here"
+}}
+"""
+    try:
+        chat_completion = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="llama-3.1-8b-instant",
+            response_format={"type": "json_object"}
+        )
+        ai_response = chat_completion.choices[0].message.content
+        return jsonify(json.loads(ai_response))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/career-insights', methods=['POST'])
+def career_insights():
+    if not request.json or 'resume_data' not in request.json:
+        return jsonify({"error": "No resume_data provided"}), 400
+        
+    resume_data = request.json['resume_data']
+    if not client: return jsonify({"error": "No API Key"}), 500
+
+    prompt = f"""You are an expert AI Career Mentor.
+Analyze this resume data:
+{json.dumps(resume_data, indent=2)}
+
+Generate Career Insights containing:
+1. Strong Skills
+2. Weak Skills
+3. Recommended Roles (List of strings)
+4. Learning Recommendations (List of strings)
+5. Mentor Message (A brief encouraging 2-sentence paragraph summarizing the insights)
+6. Next Interview Path (e.g. 'Backend Developer Intermediate')
+
+Return ONLY valid JSON.
+Response Format:
+{{
+  "strong_skills": [],
+  "weak_skills": [],
+  "recommended_roles": [],
+  "learning_recommendations": [],
+  "mentor_message": "",
+  "next_interview_path": ""
+}}
+"""
+    try:
+        chat_completion = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="llama-3.1-8b-instant",
+            response_format={"type": "json_object"}
+        )
+        return jsonify(json.loads(chat_completion.choices[0].message.content))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/evaluate-interview', methods=['POST'])
+def evaluate_interview():
+    if not request.json or 'questions' not in request.json or 'answers' not in request.json:
+        return jsonify({"error": "Missing questions or answers"}), 400
+        
+    questions = request.json['questions']
+    answers = request.json['answers']
+    
+    if not client: return jsonify({"error": "No API Key"}), 500
+
+    q_and_a = []
+    for q, a in zip(questions, answers):
+        q_and_a.append({"question": q, "answer": a})
+
+    prompt = f"""You are an expert Technical Interview Evaluator.
+Evaluate the following complete interview session:
+
+{json.dumps(q_and_a, indent=2)}
+
+Generate a comprehensive evaluation report.
+Provide scores from 0 to 100 for Technical, Communication, Confidence, Problem Solving, and Overall.
+Provide a list of Strengths, Weaknesses, and Actionable Suggestions.
+
+Return ONLY valid JSON.
+Response Format:
+{{
+  "overall_score": 0,
+  "technical_score": 0,
+  "communication_score": 0,
+  "confidence_score": 0,
+  "problem_solving_score": 0,
+  "strengths": [],
+  "weaknesses": [],
+  "suggestions": []
+}}
+"""
+    try:
+        chat_completion = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="llama-3.1-8b-instant",
+            response_format={"type": "json_object"}
+        )
+        return jsonify(json.loads(chat_completion.choices[0].message.content))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/ats-checker', methods=['POST'])
+def ats_checker():
+    if 'resume' not in request.files:
+        return jsonify({"error": "No resume file uploaded"}), 400
+    
+    file = request.files['resume']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+        
+    try:
+        resume_text = ""
+        with pdfplumber.open(file) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    resume_text += text + "\n"
+        
+        if not resume_text.strip():
+            return jsonify({"error": "Failed to extract text from PDF."}), 400
+
+        if not client:
+            return jsonify({"error": "AI service temporarily unavailable."}), 500
+
+        prompt = f"""You are an expert ATS (Applicant Tracking System) Analyzer.
+Analyze the resume below and determine its ATS compatibility.
+Return ONLY valid JSON.
+
+Resume:
+{resume_text}
+
+Return this exact structure:
+{{
+  "atsScore": 0,
+  "missingKeywords": [],
+  "suggestions": []
+}}
+
+Rules:
+* atsScore should be out of 100 based on standard ATS formatting and keyword density.
+* missingKeywords should be an array of 5 to 8 important industry keywords that are missing.
+* suggestions should be an array of 3 to 5 actionable formatting or content suggestions.
+Return ONLY JSON."""
+
+        chat_completion = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="llama-3.1-8b-instant",
+            response_format={"type": "json_object"}
+        )
+        return jsonify(json.loads(chat_completion.choices[0].message.content))
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    app.run(port=5000, debug=False)

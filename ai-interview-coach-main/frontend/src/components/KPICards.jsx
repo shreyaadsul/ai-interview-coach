@@ -45,19 +45,27 @@ const CircularProgress = ({ value, max, colorClass, trailColorClass, label, titl
   );
 };
 
-export default function KPICards() {
+export default function KPICards({ resumeData, history }) {
+  const atsScore = resumeData?.resume_score || 82;
+  const suggestedRole = resumeData?.suggested_roles?.[0] || "Junior ML Engineer";
+  
+  const latestSession = history && history.length > 0 ? history[0] : null;
+  const interviewScore = latestSession ? (latestSession.score || 0) : 78;
+  const confidenceScore = latestSession?.report?.confidence_score || 75;
+  const questionsCount = latestSession?.questions_count || 15;
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
       {/* 1. ATS Score */}
       <div className="glass-card p-5 group relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-success/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-success/20 transition-colors" />
         <CircularProgress 
-          value={82} max={100} 
+          value={atsScore} max={100} 
           colorClass="text-success" 
           trailColorClass="text-success/20" 
-          label="82" 
+          label={atsScore.toString()} 
           title="ATS Score" 
-          subtitle="82/100" 
+          subtitle={`${atsScore}/100`} 
         />
       </div>
 
@@ -65,12 +73,12 @@ export default function KPICards() {
       <div className="glass-card p-5 group relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-secondary/20 transition-colors" />
         <CircularProgress 
-          value={78} max={100} 
+          value={interviewScore} max={100} 
           colorClass="text-secondary" 
           trailColorClass="text-secondary/20" 
-          label="78" 
-          title="Interview Score" 
-          subtitle="78/100" 
+          label={interviewScore.toString()} 
+          title="Latest Score" 
+          subtitle={`${interviewScore}/100`} 
         />
       </div>
 
@@ -78,12 +86,12 @@ export default function KPICards() {
       <div className="glass-card p-5 group relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-primary/20 transition-colors" />
         <CircularProgress 
-          value={75} max={100} 
+          value={confidenceScore} max={100} 
           colorClass="text-primary" 
           trailColorClass="text-primary/20" 
-          label="75" 
+          label={confidenceScore.toString()} 
           title="Confidence" 
-          subtitle="75/100" 
+          subtitle={`${confidenceScore}/100`} 
         />
       </div>
 
@@ -91,10 +99,10 @@ export default function KPICards() {
       <div className="glass-card p-5 group relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-orange-500/20 transition-colors" />
         <CircularProgress 
-          value={15} max={15} 
+          value={questionsCount} max={questionsCount} 
           colorClass="text-orange-500" 
           trailColorClass="text-orange-500/20" 
-          label="15/15" 
+          label={`${questionsCount}/${questionsCount}`} 
           title="Questions" 
           subtitle="Completed" 
         />
@@ -107,8 +115,8 @@ export default function KPICards() {
           <CheckCircle2 className="w-5 h-5 text-success" />
           <span className="text-xs font-semibold text-success bg-success/10 px-2 py-1 rounded-full">Recommended</span>
         </div>
-        <h3 className="text-sm font-medium text-white mb-1">Junior ML Engineer</h3>
-        <p className="text-xs text-gray-400">Confidence: <span className="text-white font-semibold">82%</span></p>
+        <h3 className="text-sm font-medium text-white mb-1 truncate" title={suggestedRole}>{suggestedRole}</h3>
+        <p className="text-xs text-gray-400">Confidence: <span className="text-white font-semibold">{atsScore}%</span></p>
       </div>
     </div>
   );

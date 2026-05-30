@@ -2,8 +2,8 @@ import React from 'react';
 import InterviewCard from './InterviewCard';
 import PerformanceChart from './PerformanceChart';
 
-export default function InterviewHistoryPage({ onViewReport }) {
-  const interviewHistory = [
+export default function InterviewHistoryPage({ history, onViewReport }) {
+  const defaultHistory = [
     {
       id: "ml-engineer",
       title: "ML Engineer Mock Interview",
@@ -33,6 +33,11 @@ export default function InterviewHistoryPage({ onViewReport }) {
       score: 80
     }
   ];
+
+  const interviewHistory = (history && history.length > 0) ? history.map(h => ({
+    ...h,
+    title: h.role ? `${h.role} Interview` : h.title
+  })) : defaultHistory;
 
   return (
     <div className="space-y-8">

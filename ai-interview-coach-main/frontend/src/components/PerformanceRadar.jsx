@@ -1,14 +1,6 @@
 import React from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
-const data = [
-  { subject: 'Technical Skills', A: 85, B: 65, fullMark: 100 },
-  { subject: 'Communication', A: 70, B: 60, fullMark: 100 },
-  { subject: 'Problem Solving', A: 80, B: 55, fullMark: 100 },
-  { subject: 'Confidence', A: 75, B: 60, fullMark: 100 },
-  { subject: 'Leadership', A: 65, B: 50, fullMark: 100 },
-];
-
 const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     return (
@@ -22,7 +14,16 @@ const CustomTooltip = ({ active, payload }) => {
   return null;
 };
 
-export default function PerformanceRadar() {
+export default function PerformanceRadar({ resumeData }) {
+  const baseScore = resumeData?.resume_score || 75;
+  const dynamicData = [
+    { subject: 'Technical Skills', A: Math.min(100, baseScore + 7), B: 65, fullMark: 100 },
+    { subject: 'Communication', A: Math.max(0, baseScore - 8), B: 60, fullMark: 100 },
+    { subject: 'Problem Solving', A: Math.min(100, baseScore + 2), B: 55, fullMark: 100 },
+    { subject: 'Confidence', A: Math.max(0, baseScore - 3), B: 60, fullMark: 100 },
+    { subject: 'Leadership', A: Math.max(0, baseScore - 10), B: 50, fullMark: 100 },
+  ];
+
   return (
     <div className="glass-card p-6 h-full flex flex-col">
       <div className="mb-6">
@@ -32,7 +33,7 @@ export default function PerformanceRadar() {
       
       <div className="flex-grow w-full min-h-[300px]">
         <ResponsiveContainer width="100%" height="100%">
-          <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data}>
+          <RadarChart cx="50%" cy="50%" outerRadius="70%" data={dynamicData}>
             <PolarGrid stroke="rgba(255,255,255,0.1)" />
             <PolarAngleAxis dataKey="subject" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
             <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />

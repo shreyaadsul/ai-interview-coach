@@ -15,29 +15,41 @@ export default function ATSCheckerPage() {
     suggestions: []
   });
 
-  const handleUploadSuccess = (name) => {
+  const handleUploadSuccess = async (name, file) => {
     setFileName(name);
     setIsAnalyzing(true);
     
-    // Simulate ATS analysis delay for high-fidelity SaaS experience
-    setTimeout(() => {
-      setAnalysisResult({
-        atsScore: 82,
-        missingKeywords: [
-          "Deep Learning", "Docker", "Kubernetes", "TensorFlow", 
-          "PyTorch", "AWS", "CI/CD", "REST APIs"
-        ],
-        suggestions: [
-          "Add missing keywords naturally in your skills section.",
-          "Improve project descriptions with metrics.",
-          "Use standard section headings.",
-          "Keep formatting clean and simple.",
-          "Add measurable achievements."
-        ]
+    const formData = new FormData();
+    formData.append("resume", file);
+
+    try {
+      const response = await fetch("http://localhost:5000/api/ats-checker", {
+        method: "POST",
+        body: formData
       });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAnalysisResult({
+          atsScore: data.atsScore || 0,
+          missingKeywords: data.missingKeywords || [],
+          suggestions: data.suggestions || []
+        });
+      } else {
+        throw new Error("Failed to analyze ATS compatibility.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("ATS Analysis failed. Please make sure the AI backend is running.");
+      setAnalysisResult({
+        atsScore: 0,
+        missingKeywords: [],
+        suggestions: ["Upload failed. Please try again."]
+      });
+    } finally {
       setIsAnalyzing(false);
       setIsUploaded(true);
-    }, 1200);
+    }
   };
 
   const handleReset = () => {
