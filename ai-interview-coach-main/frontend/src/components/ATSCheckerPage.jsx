@@ -9,6 +9,7 @@ export default function ATSCheckerPage({ setResumeData }) {
   const [isUploaded, setIsUploaded] = useState(false);
   const [fileName, setFileName] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [targetRole, setTargetRole] = useState('');
   const [analysisResult, setAnalysisResult] = useState({
     atsScore: 0,
     missingKeywords: [],
@@ -21,6 +22,7 @@ export default function ATSCheckerPage({ setResumeData }) {
     
     const formData = new FormData();
     formData.append("resume", file);
+    formData.append("target_role", targetRole || "Software Engineer");
 
     try {
       const response = await fetch("http://localhost:5000/api/ats-checker", {
@@ -100,7 +102,18 @@ export default function ATSCheckerPage({ setResumeData }) {
       )}
 
       {!isUploaded && !isAnalyzing && (
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-2xl mx-auto space-y-6">
+          <div className="bg-[#111827] border border-[#1F2937] p-6 rounded-2xl shadow-xl space-y-4">
+            <h3 className="text-lg font-semibold text-white">Target Job Role</h3>
+            <p className="text-gray-400 text-sm">What role are you applying for? This helps us suggest accurate missing keywords.</p>
+            <input
+              type="text"
+              value={targetRole}
+              onChange={(e) => setTargetRole(e.target.value)}
+              placeholder="e.g. Senior Frontend Developer, Data Scientist..."
+              className="w-full bg-[#1F2937] border border-[#374151] rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#7C3AED] focus:ring-1 focus:ring-[#7C3AED] transition-colors"
+            />
+          </div>
           <ResumeUploader onUploadSuccess={handleUploadSuccess} />
         </div>
       )}

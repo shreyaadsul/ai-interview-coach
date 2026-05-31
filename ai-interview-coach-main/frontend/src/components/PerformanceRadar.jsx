@@ -7,7 +7,6 @@ const CustomTooltip = ({ active, payload }) => {
       <div className="glass p-3 rounded-lg border border-white/10 text-xs">
         <p className="font-semibold text-white mb-2">{payload[0].payload.subject}</p>
         <p className="text-primary font-medium mb-1">You: {payload[0].value}%</p>
-        <p className="text-gray-400">Avg Candidate: {payload[1].value}%</p>
       </div>
     );
   }
@@ -38,7 +37,6 @@ export default function PerformanceRadar({ resumeData, history }) {
     <div className="glass-card p-6 h-full flex flex-col">
       <div className="mb-6">
         <h2 className="text-lg font-semibold text-white">Performance Overview</h2>
-        <p className="text-sm text-gray-400">Compared to average candidates</p>
       </div>
       
       <div className="flex-grow w-full min-h-[300px]">
@@ -53,13 +51,6 @@ export default function PerformanceRadar({ resumeData, history }) {
               stroke="#7C3AED"
               fill="#7C3AED"
               fillOpacity={0.4}
-            />
-            <Radar
-              name="Avg Candidate"
-              dataKey="B"
-              stroke="#4B5563"
-              fill="#4B5563"
-              fillOpacity={0.2}
             />
             <Tooltip content={<CustomTooltip />} />
             <Legend 

@@ -2,20 +2,14 @@ import React from 'react';
 import { CheckSquare, AlertTriangle, Lightbulb } from 'lucide-react';
 
 export default function ATSSuggestions({ resumeData }) {
-  const missingKeywords = resumeData?.ats_missing_keywords || [
-    "Deep Learning", "Docker", "REST APIs", "AWS", "CI/CD"
-  ];
+  const missingKeywords = resumeData?.ats_missing_keywords || [];
+  const atsScore = resumeData?.resume_score || 0;
   
-  const atsScore = resumeData?.resume_score || 82;
   const suggestions = resumeData?.ats_suggestions?.length > 0
     ? resumeData.ats_suggestions
     : resumeData?.weaknesses?.length > 0 
       ? resumeData.weaknesses 
-      : [
-          "Add measurable project metrics (e.g., 'improved efficiency by 20%')",
-          "Improve project descriptions with STAR method",
-          "Include more industry keywords from standard job descriptions"
-        ];
+      : [];
 
   return (
     <div className="glass-card p-6">
@@ -35,14 +29,16 @@ export default function ATSSuggestions({ resumeData }) {
           <h3 className="text-sm font-medium">Missing Keywords</h3>
         </div>
         <div className="flex flex-wrap gap-2">
-          {missingKeywords.map((kw, i) => {
+          {missingKeywords.length > 0 ? missingKeywords.map((kw, i) => {
             const displayKw = typeof kw === 'object' ? (kw.keyword || kw.title || kw.name || JSON.stringify(kw)) : kw;
             return (
               <span key={i} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-200">
                 {displayKw}
               </span>
             );
-          })}
+          }) : (
+            <span className="text-gray-500 text-sm">Upload your resume to see missing keywords.</span>
+          )}
         </div>
       </div>
 
@@ -52,7 +48,7 @@ export default function ATSSuggestions({ resumeData }) {
           <h3 className="text-sm font-medium">Actionable Suggestions</h3>
         </div>
         <ul className="space-y-2 text-sm text-gray-300">
-          {suggestions.map((sug, idx) => {
+          {suggestions.length > 0 ? suggestions.map((sug, idx) => {
             const text = typeof sug === 'object' ? (sug.suggestion || sug.description || sug.title || JSON.stringify(sug)) : sug;
             return (
               <li key={idx} className="flex items-start gap-2">
@@ -60,7 +56,9 @@ export default function ATSSuggestions({ resumeData }) {
                 <span className="leading-tight">{text}</span>
               </li>
             );
-          })}
+          }) : (
+            <li className="text-gray-500 text-sm">Scan your resume to receive actionable suggestions.</li>
+          )}
         </ul>
       </div>
     </div>

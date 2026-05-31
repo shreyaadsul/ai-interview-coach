@@ -89,11 +89,11 @@ export default function InterviewBriefingPage({ sessionConfig, resumeData, onBeg
             </div>
             <div className="flex justify-between items-center text-sm">
               <span className="text-gray-400">Questions Count</span>
-              <span className="text-white font-medium">{sessionConfig.questions_count}</span>
+              <span className="text-white font-medium">20 Questions (6 Stages)</span>
             </div>
             <div className="flex justify-between items-center text-sm">
               <span className="text-gray-400">Estimated Duration</span>
-              <span className="text-primary font-medium">30 Minutes</span>
+              <span className="text-primary font-medium">15-20 Minutes</span>
             </div>
           </div>
         </div>

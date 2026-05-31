@@ -3,41 +3,10 @@ import InterviewCard from './InterviewCard';
 import PerformanceChart from './PerformanceChart';
 
 export default function InterviewHistoryPage({ history, onViewReport }) {
-  const defaultHistory = [
-    {
-      id: "ml-engineer",
-      title: "ML Engineer Mock Interview",
-      date: "May 29, 2025",
-      time: "10:30 AM",
-      score: 78
-    },
-    {
-      id: "data-scientist",
-      title: "Data Scientist Mock Interview",
-      date: "May 25, 2025",
-      time: "02:15 PM",
-      score: 72
-    },
-    {
-      id: "backend-developer",
-      title: "Backend Developer Interview",
-      date: "May 20, 2025",
-      time: "11:00 AM",
-      score: 65
-    },
-    {
-      id: "aiml-internship",
-      title: "AIML Internship Interview",
-      date: "May 15, 2025",
-      time: "04:30 PM",
-      score: 80
-    }
-  ];
-
   const interviewHistory = (history && history.length > 0) ? history.map(h => ({
     ...h,
     title: h.role ? `${h.role} Interview` : h.title
-  })) : defaultHistory;
+  })) : [];
 
   return (
     <div className="space-y-8">
@@ -50,11 +19,10 @@ export default function InterviewHistoryPage({ history, onViewReport }) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Your Interview Sessions (Span 2) */}
         <div className="lg:col-span-2 space-y-4">
           <h3 className="text-lg font-semibold text-white mb-2">Your Interview Sessions</h3>
           <div className="flex flex-col gap-4">
-            {interviewHistory.map((session) => (
+            {interviewHistory.length > 0 ? interviewHistory.map((session) => (
               <InterviewCard 
                 key={session.id}
                 title={session.title}
@@ -63,7 +31,12 @@ export default function InterviewHistoryPage({ history, onViewReport }) {
                 score={session.score}
                 onViewReport={() => onViewReport(session)}
               />
-            ))}
+            )) : (
+              <div className="bg-[#111827] border border-[#1F2937] p-8 rounded-2xl flex flex-col items-center justify-center text-center">
+                <p className="text-gray-400">You haven't taken any mock interviews yet.</p>
+                <p className="text-sm text-gray-500 mt-2">Head over to the Mock Interview tab to get started!</p>
+              </div>
+            )}
           </div>
         </div>
 

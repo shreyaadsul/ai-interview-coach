@@ -13,29 +13,7 @@ export default function QuestionAnalysis({ resumeData, history }) {
         color: (f.score || 7) >= 8 ? "text-success" : (f.score || 7) >= 6 ? "text-yellow-400" : "text-orange-500",
         bg: (f.score || 7) >= 8 ? "bg-success/10" : (f.score || 7) >= 6 ? "bg-yellow-400/10" : "bg-orange-500/10"
       }))
-    : [
-        {
-          q: "Explain your AutoJi Project",
-          score: 8.5,
-          feedback: "Great explanation. Add more challenges faced.",
-          color: "text-success",
-          bg: "bg-success/10"
-        },
-        {
-          q: "How do Flask Webhooks work?",
-          score: 7.0,
-          feedback: "Good understanding. Add technical depth.",
-          color: "text-yellow-400",
-          bg: "bg-yellow-400/10"
-        },
-        {
-          q: "What is overfitting?",
-          score: 5.5,
-          feedback: "Needs improvement. Provide real-world examples.",
-          color: "text-orange-500",
-          bg: "bg-orange-500/10"
-        }
-      ];
+    : [];
 
   return (
     <div className="glass-card p-6 overflow-hidden">
@@ -54,7 +32,7 @@ export default function QuestionAnalysis({ resumeData, history }) {
             </tr>
           </thead>
           <tbody>
-            {questions.map((item, idx) => (
+            {questions.length > 0 ? questions.map((item, idx) => (
               <tr key={idx} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
                 <td className="px-6 py-4 font-medium text-white">
                   {item.q}
@@ -68,7 +46,13 @@ export default function QuestionAnalysis({ resumeData, history }) {
                   {item.feedback}
                 </td>
               </tr>
-            ))}
+            )) : (
+              <tr>
+                <td colSpan="3" className="px-6 py-8 text-center text-gray-500">
+                  Complete an interview to see question-by-question feedback.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

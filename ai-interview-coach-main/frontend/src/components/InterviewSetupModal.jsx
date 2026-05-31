@@ -16,7 +16,7 @@ export default function InterviewSetupModal({ isOpen, onClose, onStart, resumeDa
       target_role: targetRole,
       interview_type: interviewType,
       difficulty,
-      questions_count: 'Dynamic (30 Mins)'
+      questions_count: 'Dynamic (10 Mins)'
     };
 
     try {
@@ -102,13 +102,13 @@ export default function InterviewSetupModal({ isOpen, onClose, onStart, resumeDa
               </div>
             </div>
 
-            {/* Estimated Duration */}
+            {/* Duration */}
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-300">Duration</label>
-              <div className="w-full bg-navy-900 border border-white/10 rounded-xl px-4 py-3 text-white font-medium">
-                Strict 30-Minute Timer
+              <label className="text-sm font-semibold text-gray-200">Duration</label>
+              <div className="w-full p-3 bg-navy-900/50 border border-white/10 rounded-xl text-white font-medium flex items-center">
+                Estimated 15-20 Minutes
               </div>
-              <p className="text-xs text-primary mt-2">Questions will dynamically generate based on your responses.</p>
+              <p className="text-xs text-primary/80 mt-1">Structured 6-Stage Interview Process (20 Questions)</p>
             </div>
           </div>
 

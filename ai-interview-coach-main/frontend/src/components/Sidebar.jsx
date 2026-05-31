@@ -9,7 +9,6 @@ export default function Sidebar({ currentPage, setCurrentPage }) {
     { name: 'Mock Interview', icon: Video },
     { name: 'ATS Checker', icon: CheckSquare },
     { name: 'Interview History', icon: History },
-    { name: 'Leaderboard', icon: Trophy },
     { name: 'Settings', icon: Settings },
   ];
 

@@ -12,14 +12,15 @@ export default function MockInterviewPage({
   resumeData
 }) {
   const [answers, setAnswers] = useState({});
-  const [timeLeft, setTimeLeft] = useState(1800); // 30 minutes in seconds
   const [isGenerating, setIsGenerating] = useState(false);
+  const totalQuestions = 20;
   
   // Anti-cheat states
   const [warnings, setWarnings] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
   const [warningMessage, setWarningMessage] = useState("");
   const showWarningRef = useRef(false);
+  const isSubmittingRef = useRef(false);
 
   // MediaPipe & Video states
   const videoRef = useRef(null);
@@ -32,10 +33,26 @@ export default function MockInterviewPage({
   const currentQuestion = questions[questionNumber - 1] || "";
   const currentAnswer = answers[questionNumber] || "";
   
-  // Progress is time-based now
-  const progressPercentage = Math.round(((1800 - timeLeft) / 1800) * 100);
+  const getCurrentStage = (qNum) => {
+    if (qNum <= 2) return "Introduction";
+    if (qNum <= 5) return "Resume";
+    if (qNum <= 9) return "Project";
+    if (qNum <= 14) return "Technical";
+    if (qNum <= 17) return "HR";
+    return "Follow-Up";
+  };
+  const currentStage = getCurrentStage(questionNumber);
+  const progressPercentage = Math.round((questionNumber / totalQuestions) * 100);
 
   const handleForceSubmit = useCallback((isDisqualified = false) => {
+    isSubmittingRef.current = true;
+    
+    try {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      }
+    } catch(err) {}
+
     const allAnswers = questions.map((_, i) => answers[i + 1] || "No answer provided.");
     if (onSubmit) {
       onSubmit(questions, allAnswers, isDisqualified === true);
@@ -62,18 +79,18 @@ export default function MockInterviewPage({
   // Anti-cheat event listeners (Browser focus/fullscreen)
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden) handleViolation("You switched tabs or minimized the window.");
+      if (document.hidden && !isSubmittingRef.current) handleViolation("You switched tabs or minimized the window.");
     };
     const handleBlur = () => {
       // Small delay to allow permissions popups without instantly striking
       setTimeout(() => {
-        if (!document.hasFocus()) {
+        if (!document.hasFocus() && !isSubmittingRef.current) {
           handleViolation("You clicked outside the interview window or lost focus.");
         }
       }, 500);
     };
     const handleFullscreenChange = () => {
-      if (!document.fullscreenElement) handleViolation("You exited full-screen mode.");
+      if (!document.fullscreenElement && !isSubmittingRef.current) handleViolation("You exited full-screen mode.");
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -87,18 +104,6 @@ export default function MockInterviewPage({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Timer
-  useEffect(() => {
-    if (timeLeft <= 0) {
-      handleForceSubmit();
-      return;
-    }
-    const timer = setInterval(() => {
-      setTimeLeft(prev => prev - 1);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [timeLeft, handleForceSubmit]);
 
   // Initialize MediaPipe and Camera
   useEffect(() => {
@@ -239,9 +244,16 @@ export default function MockInterviewPage({
     }
   };
 
+  const isLastQuestion = questionNumber === totalQuestions;
+
   const handleSaveAndNext = async () => {
     if (questionNumber < questions.length) {
       handleNext();
+      return;
+    }
+
+    if (isLastQuestion) {
+      handleForceSubmit();
       return;
     }
 
@@ -260,7 +272,8 @@ export default function MockInterviewPage({
           history: history,
           target_role: sessionConfig?.target_role,
           interview_type: sessionConfig?.interview_type,
-          difficulty: sessionConfig?.difficulty
+          difficulty: sessionConfig?.difficulty,
+          stage: getCurrentStage(questionNumber + 1)
         })
       });
 
@@ -289,7 +302,6 @@ export default function MockInterviewPage({
     }, 1000); // Wait a second before unlocking to prevent rapid firing
   };
 
-  const isLastQuestion = questionNumber === questions.length;
 
   return (
     <>
@@ -357,21 +369,33 @@ export default function MockInterviewPage({
               <div className="flex items-center justify-between">
                 <span className="text-sm font-semibold text-gray-200">Interview Progress</span>
                 <div className="flex items-center gap-4">
-                  <span className={`text-xs font-medium flex items-center gap-1.5 px-2.5 py-1 rounded-md border ${timeLeft < 300 ? 'bg-danger/10 text-danger border-danger/20 animate-pulse' : 'bg-primary/10 text-primary border-primary/20'}`}>
-                    <Clock className="w-3.5 h-3.5" />
-                    {formatTime(timeLeft)}
+                  <span className="text-xs text-primary font-medium bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-md">
+                    Estimated 15-20 Mins
                   </span>
                   <span className="text-xs text-gray-400 font-medium bg-white/5 border border-white/10 px-2.5 py-1 rounded-md">
-                    Question {questionNumber} of {questions.length}
+                    Question {questionNumber} of {totalQuestions}
                   </span>
                 </div>
               </div>
               
               <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/10">
                 <div 
-                  className={`h-full rounded-full transition-all duration-500 ease-out ${timeLeft < 300 ? 'bg-danger' : 'bg-gradient-to-r from-primary to-secondary'}`}
+                  className="h-full rounded-full transition-all duration-500 ease-out bg-gradient-to-r from-primary to-secondary"
                   style={{ width: `${progressPercentage}%` }}
                 />
+              </div>
+
+              {/* Stage Tracker */}
+              <div className="flex gap-2 mt-4 text-xs font-semibold text-gray-400 overflow-x-auto pb-2 scrollbar-hide">
+                {["Introduction", "Resume", "Project", "Technical", "HR", "Follow-Up"].map((stage) => {
+                  const isActive = stage === currentStage;
+                  const isPast = ["Introduction", "Resume", "Project", "Technical", "HR", "Follow-Up"].indexOf(stage) < ["Introduction", "Resume", "Project", "Technical", "HR", "Follow-Up"].indexOf(currentStage);
+                  return (
+                    <span key={stage} className={`px-3 py-1.5 rounded-lg border whitespace-nowrap flex items-center gap-1.5 ${isActive ? 'bg-primary/20 text-primary border-primary/30' : isPast ? 'bg-success/10 text-success border-success/20' : 'bg-white/5 border-white/5'}`}>
+                      {stage} {isActive ? "🔄" : isPast ? "✓" : ""}
+                    </span>
+                  );
+                })}
               </div>
             </div>
 
@@ -435,7 +459,7 @@ export default function MockInterviewPage({
               <ul className="space-y-3">
                 <li className="flex items-start gap-2.5 text-sm text-gray-300">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
-                  <span>The timer will strictly end the interview at 30 minutes.</span>
+                  <span>The interview consists of 6 structured stages (20 questions).</span>
                 </li>
                 <li className="flex items-start gap-2.5 text-sm text-gray-300">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />

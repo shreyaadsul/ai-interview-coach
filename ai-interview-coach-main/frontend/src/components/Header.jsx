@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bell, Plus, Edit2, Check, CheckCircle2, AlertCircle, User, Briefcase, GraduationCap, FileText, Settings, LogOut } from 'lucide-react';
 
-export default function Header({ userName = 'Shreya Adsul', onNewInterview, onNameChange, currentPage, resumeData = {} }) {
+export default function Header({ userName = 'Shreya Adsul', onNewInterview, onNameChange, onLogout, currentPage, resumeData = {} }) {
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(userName);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -173,7 +173,10 @@ export default function Header({ userName = 'Shreya Adsul', onNewInterview, onNa
                   <Settings className="w-4 h-4" />
                   Account Settings
                 </button>
-                <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors text-left">
+                <button 
+                  onClick={onLogout}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors text-left"
+                >
                   <LogOut className="w-4 h-4" />
                   Sign Out
                 </button>

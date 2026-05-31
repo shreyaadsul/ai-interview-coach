@@ -59,7 +59,8 @@ export default function InterviewReportPage({ report, onBackToHistory }) {
               { label: "Technical", score: report.technical_score },
               { label: "Communication", score: report.communication_score },
               { label: "Confidence", score: report.confidence_score },
-              { label: "Problem Solving", score: report.problem_solving_score }
+              { label: "Problem Solving", score: report.problem_solving_score },
+              { label: "Project Knowledge", score: report.project_knowledge_score }
             ].map((item, i) => (
               <div key={i} className="space-y-2">
                 <div className="flex justify-between items-center text-sm">
@@ -76,6 +77,36 @@ export default function InterviewReportPage({ report, onBackToHistory }) {
             ))}
           </div>
         </div>
+        {/* Stage Breakdowns */}
+        {report.stage_scores && (
+          <div className="glass p-6 border border-white/10 rounded-2xl md:col-span-3 space-y-6">
+            <h3 className="text-lg font-semibold text-white">Interview Stage Breakdown</h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+              {[
+                { label: "Introduction", score: report.stage_scores.Introduction },
+                { label: "Resume", score: report.stage_scores.Resume },
+                { label: "Project", score: report.stage_scores.Project },
+                { label: "Technical", score: report.stage_scores.Technical },
+                { label: "HR", score: report.stage_scores.HR }
+              ].map((item, i) => (
+                <div key={i} className="space-y-2 p-4 bg-white/5 border border-white/5 rounded-xl">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-300 font-medium">{item.label}</span>
+                  </div>
+                  <div className="text-2xl font-bold text-white mt-1">
+                    {item.score || 0} <span className="text-sm font-normal text-gray-500">/ 10</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mt-2">
+                    <div 
+                      className={`h-full rounded-full transition-all duration-1000 ${item.score >= 8 ? 'bg-success' : item.score >= 6 ? 'bg-warning' : 'bg-danger'}`} 
+                      style={{ width: `${(item.score || 0) * 10}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -127,6 +158,86 @@ export default function InterviewReportPage({ report, onBackToHistory }) {
           </ul>
         </div>
       </div>
+
+      {report.career_coach && (
+        <div className="mt-12 pt-12 border-t border-white/10 space-y-6">
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <span className="text-3xl">🚀</span> Career Readiness Engine
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Readiness Score Card */}
+            <div className="glass p-6 border border-white/10 rounded-2xl flex flex-col items-center justify-center text-center bg-gradient-to-b from-navy-800 to-navy-900 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-3xl rounded-full" />
+              <h3 className="text-gray-400 font-semibold mb-4 uppercase tracking-widest text-xs">Interview Readiness</h3>
+              <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary mb-2">
+                {report.career_coach.interview_readiness}%
+              </div>
+              <div className={`px-4 py-1.5 rounded-full text-sm font-bold border ${report.career_coach.interview_readiness >= 90 ? 'bg-success/10 text-success border-success/20' : report.career_coach.interview_readiness >= 80 ? 'bg-primary/10 text-primary border-primary/20' : report.career_coach.interview_readiness >= 70 ? 'bg-warning/10 text-warning border-warning/20' : 'bg-danger/10 text-danger border-danger/20'}`}>
+                {report.career_coach.interview_readiness >= 90 ? 'Elite' : report.career_coach.interview_readiness >= 80 ? 'Ready' : report.career_coach.interview_readiness >= 70 ? 'Improving' : 'Needs Practice'}
+              </div>
+            </div>
+
+            {/* AI Career Coach Insights */}
+            <div className="glass p-6 border border-white/10 rounded-2xl md:col-span-2 relative overflow-hidden">
+              <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-secondary/10 blur-3xl rounded-full" />
+              <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+                <span>🤖</span> AI Career Coach
+              </h3>
+              <p className="text-gray-300 italic mb-6">"{report.career_coach.mentor_insight}"</p>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-white/5 border border-white/5 rounded-xl">
+                  <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Suggested Role</p>
+                  <p className="text-sm font-semibold text-white">{report.career_coach.suggested_role}</p>
+                </div>
+                <div className="p-3 bg-white/5 border border-white/5 rounded-xl">
+                  <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Hiring Recommendation</p>
+                  <p className={`text-sm font-bold ${report.career_coach.hiring_recommendation === 'Strongly Recommended' ? 'text-success' : report.career_coach.hiring_recommendation === 'Recommended' ? 'text-primary' : report.career_coach.hiring_recommendation === 'Borderline' ? 'text-warning' : 'text-danger'}`}>{report.career_coach.hiring_recommendation}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Career Gap Analysis */}
+            <div className="glass p-6 border border-white/10 rounded-2xl">
+              <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+                <span className="text-warning">⚠️</span> Career Gap Analysis
+              </h3>
+              <div className="space-y-3">
+                <p className="text-sm text-gray-400">Missing Critical Skills:</p>
+                <div className="flex flex-wrap gap-2">
+                  {report.career_coach.skill_gaps?.map((gap, i) => (
+                    <span key={i} className="px-3 py-1 bg-danger/10 text-danger border border-danger/20 rounded-lg text-sm">{gap}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Learning Roadmap */}
+            <div className="glass p-6 border border-white/10 rounded-2xl lg:col-span-2">
+              <h3 className="text-white font-bold mb-4 flex items-center gap-2">
+                <span className="text-success">📈</span> Personalized Learning Roadmap
+              </h3>
+              <div className="relative">
+                <div className="absolute top-0 bottom-0 left-[15px] w-0.5 bg-white/10" />
+                <div className="space-y-4">
+                  {report.career_coach.roadmap?.map((step, i) => (
+                    <div key={i} className="relative pl-10">
+                      <div className="absolute left-0 top-1.5 w-8 h-8 rounded-full bg-navy-900 border-2 border-primary flex items-center justify-center z-10">
+                        <div className="w-2 h-2 rounded-full bg-primary" />
+                      </div>
+                      <h4 className="text-white font-semibold text-sm">{step.week}</h4>
+                      <p className="text-gray-400 text-sm">{step.focus}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

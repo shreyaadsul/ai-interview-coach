@@ -46,13 +46,13 @@ const CircularProgress = ({ value, max, colorClass, trailColorClass, label, titl
 };
 
 export default function KPICards({ resumeData, history }) {
-  const atsScore = resumeData?.resume_score || 82;
-  const suggestedRole = resumeData?.suggested_roles?.[0] || "Junior ML Engineer";
+  const atsScore = resumeData?.resume_score || 0;
+  const suggestedRole = resumeData?.suggested_roles?.[0] || "Not Analyzed Yet";
   
   const latestSession = history && history.length > 0 ? history[0] : null;
-  const interviewScore = latestSession ? (latestSession.score || 0) : 78;
-  const confidenceScore = latestSession?.report?.confidence_score || 75;
-  const questionsCount = latestSession?.questions_count || 15;
+  const interviewScore = latestSession ? (latestSession.score || 0) : 0;
+  const confidenceScore = latestSession?.report?.confidence_score || 0;
+  const questionsCount = latestSession?.questions_count || 0;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
