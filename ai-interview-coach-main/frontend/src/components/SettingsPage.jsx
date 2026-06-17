@@ -1,13 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ProfileCard from './ProfileCard';
 import PreferencesCard from './PreferencesCard';
 import AccountSettingsCard from './AccountSettingsCard';
 import { X, Lock, Bell, Trash, ShieldAlert } from 'lucide-react';
 
-export default function SettingsPage() {
+export default function SettingsPage({ onProfileUpdate }) {
+  const [userProfile, setUserProfile] = useState(() => {
+    const saved = localStorage.getItem('userProfile');
+    return saved ? JSON.parse(saved) : null;
+  });
+  const userId = userProfile?.email || "";
+
   const [profile, setProfile] = useState({
-    name: "Shreya",
-    email: "shreya@example.com"
+    name: userProfile?.name || "Shreya",
+    email: userId || "shreya@example.com",
+    avatar: userProfile?.avatar || "👨‍💻",
+    degree: userProfile?.degree || "",
+    graduationYear: userProfile?.graduationYear || "",
+    targetRole: userProfile?.targetRole || "",
+    skills: userProfile?.skills || [],
+    weakAreas: userProfile?.weakAreas || [],
+    careerGoal: userProfile?.careerGoal || ""
   });
 
   const [preferences, setPreferences] = useState({
@@ -16,22 +29,116 @@ export default function SettingsPage() {
     questionType: "All"
   });
 
+  const [notifications, setNotifications] = useState({
+    email: true,
+    browser: true,
+    push: false
+  });
+  const [theme, setTheme] = useState("dark");
+
   // Modal active states
   const [modalOpen, setModalOpen] = useState(null); // 'password' | 'notifications' | 'delete' | null
   const [successMessage, setSuccessMessage] = useState("");
 
-  // Simulated handlers
-  const handleUpdateProfile = (updatedProfile) => {
+  // Load settings from MongoDB
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (!userId) return;
+      try {
+        const response = await fetch(`http://localhost:5000/api/settings?user_id=${encodeURIComponent(userId)}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.profile) setProfile(data.profile);
+          if (data.preferences) setPreferences(data.preferences);
+          if (data.notifications) setNotifications(data.notifications);
+          if (data.theme) setTheme(data.theme);
+        }
+      } catch (err) {
+        console.error("Failed to load settings from MongoDB", err);
+      }
+    };
+    loadSettings();
+  }, [userId]);
+
+  const handleUpdateProfile = async (updatedProfile) => {
     setProfile(updatedProfile);
-    showSuccessToast("Profile settings saved successfully!");
+    if (userId) {
+      try {
+        const response = await fetch("http://localhost:5000/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: userId,
+            profile: updatedProfile,
+            preferences: preferences,
+            notifications: notifications,
+            theme: theme
+          })
+        });
+        if (response.ok) {
+          showSuccessToast("Profile settings saved successfully!");
+          
+          // Sync changes back to localStorage
+          const updatedLocalProfile = {
+            ...userProfile,
+            ...updatedProfile
+          };
+          localStorage.setItem('userProfile', JSON.stringify(updatedLocalProfile));
+          if (onProfileUpdate) {
+            onProfileUpdate(updatedLocalProfile);
+          }
+        } else {
+          throw new Error("Failed to save settings");
+        }
+      } catch (err) {
+        console.error(err);
+        showSuccessToast("Failed to save settings to server.");
+      }
+    } else {
+      showSuccessToast("Profile settings saved successfully!");
+      const updatedLocalProfile = {
+        ...userProfile,
+        ...updatedProfile
+      };
+      localStorage.setItem('userProfile', JSON.stringify(updatedLocalProfile));
+      if (onProfileUpdate) {
+        onProfileUpdate(updatedLocalProfile);
+      }
+    }
   };
 
-  const handlePreferenceChange = (key, value) => {
-    setPreferences({
+  const handlePreferenceChange = async (key, value) => {
+    const updatedPreferences = {
       ...preferences,
       [key]: value
-    });
-    showSuccessToast(`Preferences updated: ${value}`);
+    };
+    setPreferences(updatedPreferences);
+    
+    if (userId) {
+      try {
+        const response = await fetch("http://localhost:5000/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: userId,
+            profile: profile,
+            preferences: updatedPreferences,
+            notifications: notifications,
+            theme: theme
+          })
+        });
+        if (response.ok) {
+          showSuccessToast(`Preferences updated: ${value}`);
+        } else {
+          throw new Error("Failed to save preferences");
+        }
+      } catch (err) {
+        console.error(err);
+        showSuccessToast("Failed to save preferences to server.");
+      }
+    } else {
+      showSuccessToast(`Preferences updated: ${value}`);
+    }
   };
 
   const showSuccessToast = (msg) => {
@@ -63,6 +170,7 @@ export default function SettingsPage() {
         {/* Left Column: Profile settings + Preferences (Span 2) */}
         <div className="lg:col-span-2 space-y-6">
           <ProfileCard 
+            key={profile.email + profile.name}
             initialProfile={profile} 
             onUpdate={handleUpdateProfile} 
           />
@@ -170,7 +278,12 @@ export default function SettingsPage() {
                   <span className="text-sm font-semibold text-white">Email Notifications</span>
                   <span className="text-xs text-gray-400">Receive reports and feedback updates.</span>
                 </div>
-                <input type="checkbox" defaultChecked className="w-4 h-4 accent-primary cursor-pointer" />
+                <input 
+                  type="checkbox" 
+                  checked={notifications.email} 
+                  onChange={(e) => setNotifications({ ...notifications, email: e.target.checked })} 
+                  className="w-4 h-4 accent-primary cursor-pointer" 
+                />
               </div>
 
               <div className="flex items-center justify-between p-3.5 bg-[#0B1020]/40 border border-[#1F2937] rounded-xl">
@@ -178,7 +291,12 @@ export default function SettingsPage() {
                   <span className="text-sm font-semibold text-white">Browser Notifications</span>
                   <span className="text-xs text-gray-400">Stay alerted during mock sessions.</span>
                 </div>
-                <input type="checkbox" defaultChecked className="w-4 h-4 accent-primary cursor-pointer" />
+                <input 
+                  type="checkbox" 
+                  checked={notifications.browser} 
+                  onChange={(e) => setNotifications({ ...notifications, browser: e.target.checked })} 
+                  className="w-4 h-4 accent-primary cursor-pointer" 
+                />
               </div>
 
               <div className="flex items-center justify-between p-3.5 bg-[#0B1020]/40 border border-[#1F2937] rounded-xl">
@@ -186,7 +304,12 @@ export default function SettingsPage() {
                   <span className="text-sm font-semibold text-white">Push Notifications</span>
                   <span className="text-xs text-gray-400">Get reminders for scheduled reviews.</span>
                 </div>
-                <input type="checkbox" className="w-4 h-4 accent-primary cursor-pointer" />
+                <input 
+                  type="checkbox" 
+                  checked={notifications.push} 
+                  onChange={(e) => setNotifications({ ...notifications, push: e.target.checked })} 
+                  className="w-4 h-4 accent-primary cursor-pointer" 
+                />
               </div>
 
               <div className="flex gap-3 pt-2">
@@ -198,9 +321,33 @@ export default function SettingsPage() {
                   Cancel
                 </button>
                 <button 
-                  onClick={() => {
+                  onClick={async () => {
                     handleCloseModal();
-                    showSuccessToast("Notification preferences saved!");
+                    if (userId) {
+                      try {
+                        const response = await fetch("http://localhost:5000/api/settings", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            user_id: userId,
+                            profile: profile,
+                            preferences: preferences,
+                            notifications: notifications,
+                            theme: theme
+                          })
+                        });
+                        if (response.ok) {
+                          showSuccessToast("Notification preferences saved!");
+                        } else {
+                          throw new Error("Failed to save notifications");
+                        }
+                      } catch (err) {
+                        console.error(err);
+                        showSuccessToast("Failed to save preferences to server.");
+                      }
+                    } else {
+                      showSuccessToast("Notification preferences saved!");
+                    }
                   }}
                   className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#7C3AED] to-[#3B82F6] text-white font-semibold text-sm transition-shadow shadow-md shadow-[#7C3AED]/15 focus:outline-none"
                 >

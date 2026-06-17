@@ -20,9 +20,16 @@ export default function ATSCheckerPage({ setResumeData }) {
     setFileName(name);
     setIsAnalyzing(true);
     
+    const userProfileStr = localStorage.getItem('userProfile');
+    const userProfile = userProfileStr ? JSON.parse(userProfileStr) : null;
+    const userId = userProfile?.email || "";
+
     const formData = new FormData();
     formData.append("resume", file);
     formData.append("target_role", targetRole || "Software Engineer");
+    if (userId) {
+      formData.append("user_id", userId);
+    }
 
     try {
       const response = await fetch("http://localhost:5000/api/ats-checker", {

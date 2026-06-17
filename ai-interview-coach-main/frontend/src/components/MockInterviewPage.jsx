@@ -2,6 +2,20 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { HelpCircle, ChevronLeft, ChevronRight, CheckCircle, Info, Clock, Loader2, AlertTriangle, Camera } from 'lucide-react';
 import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 
+const loadScript = (src) => {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) {
+      resolve();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+};
+
 export default function MockInterviewPage({ 
   onSubmit, 
   questionNumber, 
@@ -21,6 +35,13 @@ export default function MockInterviewPage({
   const [warningMessage, setWarningMessage] = useState("");
   const showWarningRef = useRef(false);
   const isSubmittingRef = useRef(false);
+
+  // Object Detection and Phone tracking refs
+  const detectorRef = useRef(null);
+  const phoneVisibleRef = useRef(false);
+  const phoneFirstSeenTimeRef = useRef(null);
+  const warningLevel2TriggeredRef = useRef(false);
+  const phoneLastSeenTimeRef = useRef(0);
 
   // MediaPipe & Video states
   const videoRef = useRef(null);
@@ -105,7 +126,7 @@ export default function MockInterviewPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Initialize MediaPipe and Camera
+  // Initialize MediaPipe, Object Detector, and Camera
   useEffect(() => {
     let isMounted = true;
     const initializeMediaPipe = async () => {
@@ -129,6 +150,16 @@ export default function MockInterviewPage({
           return;
         }
         faceLandmarkerRef.current = landmarker;
+
+        // Load COCO-SSD for prohibited object detection (phone, tablet, etc.)
+        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs");
+        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd");
+        const detector = await window.cocoSsd.load();
+        if (!isMounted) {
+          return;
+        }
+        detectorRef.current = detector;
+
         setIsModelLoading(false);
 
         // Start camera
@@ -142,7 +173,7 @@ export default function MockInterviewPage({
           videoRef.current.srcObject = stream;
         }
       } catch (err) {
-        console.error("Camera or MediaPipe init failed", err);
+        console.error("Camera or Proctoring Model init failed", err);
         if (isMounted) {
           handleViolation("Camera disconnected, denied, or unavailable.");
         }
@@ -160,9 +191,48 @@ export default function MockInterviewPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const detectObjects = async () => {
+    if (videoRef.current && detectorRef.current && !showWarningRef.current) {
+      try {
+        const predictions = await detectorRef.current.detect(videoRef.current);
+        const phone = predictions.find(p => p.class === "cell phone" && p.score > 0.5);
+        
+        if (phone) {
+          const now = Date.now();
+          if (!phoneVisibleRef.current) {
+            phoneVisibleRef.current = true;
+            phoneFirstSeenTimeRef.current = now;
+            warningLevel2TriggeredRef.current = false;
+            
+            if (now - phoneLastSeenTimeRef.current > 5000 && phoneLastSeenTimeRef.current !== 0) {
+              handleViolation("Prohibited object detected: Repeated mobile phone/device usage is strictly forbidden!");
+            } else {
+              handleViolation("Prohibited object detected: Mobile phone/device usage is strictly forbidden!");
+            }
+          } else {
+            const duration = now - phoneFirstSeenTimeRef.current;
+            if (duration > 3000 && !warningLevel2TriggeredRef.current) {
+              warningLevel2TriggeredRef.current = true;
+              handleViolation("Prohibited object detected: Mobile phone remains visible for more than 3 seconds! Put it away immediately.");
+            }
+          }
+          phoneLastSeenTimeRef.current = now;
+        } else {
+          if (phoneVisibleRef.current) {
+            phoneVisibleRef.current = false;
+            phoneLastSeenTimeRef.current = Date.now();
+          }
+        }
+      } catch (err) {
+        console.error("Object detection error:", err);
+      }
+    }
+  };
+
   const handleVideoLoad = () => {
     let lastVideoTime = -1;
     let awayFrames = 0; // Require looking away for X frames before triggering warning
+    let lastObjectDetectTime = 0;
     
     const predictWebcam = async () => {
       if (videoRef.current && faceLandmarkerRef.current) {
@@ -180,14 +250,14 @@ export default function MockInterviewPage({
               
               const yawDegrees = (yaw * 180) / Math.PI;
               const pitchDegrees = (pitch * 180) / Math.PI;
-
+ 
               // Threshold for looking away (relaxed to 35 degrees)
               if (Math.abs(yawDegrees) > 35 || Math.abs(pitchDegrees) > 35) {
                 awayFrames++;
               } else {
                 awayFrames = 0;
               }
-
+ 
               // Running at ~4 FPS, 8 frames = ~2 seconds
               if (awayFrames > 8) { 
                  handleViolation("AI Head Tracking detected you looking away from the screen!");
@@ -206,6 +276,14 @@ export default function MockInterviewPage({
             console.error("Face landmark error:", e);
           }
         }
+
+        // Run object detection every 500ms
+        const now = Date.now();
+        if (now - lastObjectDetectTime > 500) {
+          lastObjectDetectTime = now;
+          await detectObjects();
+        }
+
         // Throttle to ~4 FPS to prevent UI lagging
         setTimeout(() => {
           animationRef.current = requestAnimationFrame(predictWebcam);
@@ -239,6 +317,11 @@ export default function MockInterviewPage({
   };
 
   const handleNext = () => {
+    const currentAns = answers[questionNumber];
+    if (!currentAns || !currentAns.trim()) {
+      alert("Please answer the question before proceeding.");
+      return;
+    }
     if (questionNumber < questions.length) {
       setQuestionNumber(questionNumber + 1);
     }
@@ -246,9 +329,75 @@ export default function MockInterviewPage({
 
   const isLastQuestion = questionNumber === totalQuestions;
 
-  const handleSaveAndNext = async () => {
+  const handleSkipQuestion = async () => {
+    const updatedAnswers = {
+      ...answers,
+      [questionNumber]: "skipped"
+    };
+    setAnswers(updatedAnswers);
+
     if (questionNumber < questions.length) {
-      handleNext();
+      setQuestionNumber(questionNumber + 1);
+      return;
+    }
+
+    if (isLastQuestion) {
+      isSubmittingRef.current = true;
+      try {
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        }
+      } catch(err) {}
+
+      const allAnswers = questions.map((_, i) => updatedAnswers[i + 1] || "No answer provided.");
+      if (onSubmit) {
+        onSubmit(questions, allAnswers, false);
+      }
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const history = questions.map((q, i) => ({
+        question: q,
+        answer: updatedAnswers[i + 1] || "No answer provided."
+      }));
+
+      const response = await fetch("http://localhost:5000/api/next-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resume_data: resumeData,
+          history: history,
+          target_role: sessionConfig?.target_role,
+          interview_type: sessionConfig?.interview_type,
+          difficulty: sessionConfig?.difficulty,
+          stage: getCurrentStage(questionNumber + 1)
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const nextQ = data.question || "Can you elaborate on your previous answer?";
+        setQuestions([...questions, nextQ]);
+        setQuestionNumber(questionNumber + 1);
+      }
+    } catch (err) {
+      console.error("Failed to generate next question", err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleSaveAndNext = async () => {
+    const currentAns = answers[questionNumber];
+    if (!currentAns || !currentAns.trim()) {
+      alert("Please answer the question before proceeding.");
+      return;
+    }
+
+    if (questionNumber < questions.length) {
+      setQuestionNumber(questionNumber + 1);
       return;
     }
 
@@ -435,11 +584,19 @@ export default function MockInterviewPage({
             <div className="flex gap-4">
               <button
                 onClick={handleSaveAndNext}
-                disabled={isGenerating || (isLastQuestion && !currentAnswer.trim())}
+                disabled={isGenerating}
                 className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-primary to-secondary hover:shadow-lg hover:shadow-primary/25 text-white font-semibold transition-all duration-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
               >
                 {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 {isGenerating ? "Analyzing & Generating..." : (isLastQuestion ? "Save Answer & Next Question" : "View Next Question")}
+              </button>
+              <button
+                type="button"
+                onClick={handleSkipQuestion}
+                disabled={isGenerating}
+                className="px-6 py-3.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 font-semibold transition-all duration-300 text-sm focus:outline-none focus:ring-2"
+              >
+                Skip Question
               </button>
               <button
                 onClick={handleForceSubmit}

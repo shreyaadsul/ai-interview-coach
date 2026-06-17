@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bell, Plus, Edit2, Check, CheckCircle2, AlertCircle, User, Briefcase, GraduationCap, FileText, Settings, LogOut } from 'lucide-react';
 
-export default function Header({ userName = 'Shreya Adsul', onNewInterview, onNameChange, onLogout, currentPage, resumeData = {} }) {
+export default function Header({ userName = 'Shreya Adsul', avatar, onNewInterview, onNameChange, onLogout, currentPage, resumeData = {}, setCurrentPage }) {
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(userName);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -123,23 +123,38 @@ export default function Header({ userName = 'Shreya Adsul', onNewInterview, onNa
         
         {/* Profile Dropdown */}
         <div className="relative border-l border-white/10 pl-6 flex items-center gap-3" ref={profileRef}>
-          <img 
-            src={`https://api.dicebear.com/7.x/notionists/svg?seed=${firstName}&backgroundColor=7C3AED`} 
-            alt="User Avatar" 
-            className="w-10 h-10 rounded-full border border-white/10 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
-            onClick={() => setShowProfile(!showProfile)}
-          />
+          {avatar ? (
+            <div 
+              className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary/20 to-secondary/20 border border-white/10 flex items-center justify-center text-xl cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all select-none"
+              onClick={() => setShowProfile(!showProfile)}
+            >
+              {avatar}
+            </div>
+          ) : (
+            <img 
+              src={`https://api.dicebear.com/7.x/notionists/svg?seed=${firstName}&backgroundColor=7C3AED`} 
+              alt="User Avatar" 
+              className="w-10 h-10 rounded-full border border-white/10 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
+              onClick={() => setShowProfile(!showProfile)}
+            />
+          )}
           
           {showProfile && (
             <div className="absolute right-0 top-14 w-72 bg-navy-800 border border-white/10 rounded-2xl shadow-2xl shadow-black/50 z-50 overflow-hidden animate-fadeIn">
               {/* Profile Header */}
               <div className="p-5 border-b border-white/10 bg-gradient-to-br from-primary/10 to-transparent">
                 <div className="flex items-center gap-4">
-                  <img 
-                    src={`https://api.dicebear.com/7.x/notionists/svg?seed=${firstName}&backgroundColor=7C3AED`} 
-                    alt="User Avatar" 
-                    className="w-14 h-14 rounded-full border-2 border-primary/50"
-                  />
+                  {avatar ? (
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-primary/20 to-secondary/20 border-2 border-primary/50 flex items-center justify-center text-3xl select-none">
+                      {avatar}
+                    </div>
+                  ) : (
+                    <img 
+                      src={`https://api.dicebear.com/7.x/notionists/svg?seed=${firstName}&backgroundColor=7C3AED`} 
+                      alt="User Avatar" 
+                      className="w-14 h-14 rounded-full border-2 border-primary/50"
+                    />
+                  )}
                   <div>
                     <h3 className="text-lg font-bold text-white leading-tight">{userName}</h3>
                     <p className="text-sm text-gray-400 mt-0.5">{resumeData?.experience_level || 'Entry-Level'}</p>
@@ -169,7 +184,13 @@ export default function Header({ userName = 'Shreya Adsul', onNewInterview, onNa
 
               {/* Actions */}
               <div className="border-t border-white/10 p-2">
-                <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-colors text-left">
+                <button 
+                  onClick={() => {
+                    if (setCurrentPage) setCurrentPage('Settings');
+                    setShowProfile(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-colors text-left"
+                >
                   <Settings className="w-4 h-4" />
                   Account Settings
                 </button>

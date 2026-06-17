@@ -115,11 +115,15 @@ function App() {
     localStorage.setItem('interviewHistory', JSON.stringify(interviewHistory));
   }, [interviewHistory]);
 
-  // Fetch history from MongoDB on mount
+  // Fetch user-specific data from MongoDB on mount/login
   useEffect(() => {
-    const fetchHistory = async () => {
+    const fetchUserData = async () => {
+      if (!userProfile?.email) return;
+      const userId = userProfile.email;
+
+      // Load History
       try {
-        const response = await fetch("http://localhost:5000/api/interviews");
+        const response = await fetch(`http://localhost:5000/api/interviews?user_id=${encodeURIComponent(userId)}`);
         if (response.ok) {
           const data = await response.json();
           if (data.history) {
@@ -127,11 +131,35 @@ function App() {
           }
         }
       } catch (err) {
-        console.error("Failed to fetch history from MongoDB, using LocalStorage fallback", err);
+        console.error("Failed to fetch history from MongoDB", err);
+      }
+
+      // Load Resume Analysis
+      try {
+        const response = await fetch(`http://localhost:5000/api/resume?user_id=${encodeURIComponent(userId)}`);
+        if (response.ok) {
+          const data = await response.json();
+          const { user_id, ...cleanData } = data;
+          setResumeData(cleanData);
+        }
+      } catch (err) {
+        console.error("Failed to fetch resume analysis from MongoDB", err);
+      }
+
+      // Load Career Insights
+      try {
+        const response = await fetch(`http://localhost:5000/api/career-insights?user_id=${encodeURIComponent(userId)}`);
+        if (response.ok) {
+          const data = await response.json();
+          setCareerInsights(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch career insights from MongoDB", err);
       }
     };
-    fetchHistory();
-  }, []);
+
+    fetchUserData();
+  }, [userProfile]);
 
   // Current session states
   const [showSetupModal, setShowSetupModal] = useState(false);
@@ -192,7 +220,10 @@ function App() {
       const response = await fetch("http://localhost:5000/api/career-insights", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resume_data: parsedResumeData })
+        body: JSON.stringify({ 
+          resume_data: parsedResumeData,
+          user_id: userProfile?.email
+        })
       });
       if (response.ok) {
         const insights = await response.json();
@@ -309,7 +340,12 @@ function App() {
           await fetch("http://localhost:5000/api/interview/save", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(newSession)
+            body: JSON.stringify({
+              ...newSession,
+              user_id: userProfile?.email,
+              questions: questions,
+              answers: answers
+            })
           });
         } catch(err) {
           console.error("MongoDB save failed, falling back to LocalStorage only", err);
@@ -341,6 +377,7 @@ function App() {
       <div className="flex flex-col">
         <Header 
           userName={userProfile?.name || resumeData.name} 
+          avatar={userProfile?.avatar}
           onNewInterview={() => setShowSetupModal(true)} 
           onNameChange={(newName) => {
             setResumeData({...resumeData, name: newName});
@@ -349,6 +386,7 @@ function App() {
           onLogout={handleLogout}
           currentPage={currentPage}
           resumeData={resumeData}
+          setCurrentPage={setCurrentPage}
         />
         
         <InterviewSetupModal 
@@ -610,7 +648,7 @@ function App() {
                   // If report isn't embedded, try to fetch from MongoDB
                   if (!reportToUse && session.id) {
                     try {
-                      const response = await fetch(`http://localhost:5000/api/interview/${session.id}`);
+                      const response = await fetch(`http://localhost:5000/api/interview/${session.id}?user_id=${encodeURIComponent(userProfile?.email || "")}`);
                       if (response.ok) {
                         const data = await response.json();
                         reportToUse = data.report;
@@ -638,7 +676,7 @@ function App() {
               transition={{ duration: 0.5 }}
               className="max-w-7xl mx-auto"
             >
-              <SettingsPage />
+              <SettingsPage onProfileUpdate={setUserProfile} />
             </motion.div>
           ) : (
             <motion.div

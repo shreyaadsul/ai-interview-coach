@@ -21,8 +21,15 @@ export default function ResumeAnalysisPage({ resumeData, onAnalysisSuccess }) {
     }
 
     setIsAnalyzing(true);
+    const userProfileStr = localStorage.getItem('userProfile');
+    const userProfile = userProfileStr ? JSON.parse(userProfileStr) : null;
+    const userId = userProfile?.email || "";
+
     const formData = new FormData();
     formData.append("resume", file);
+    if (userId) {
+      formData.append("user_id", userId);
+    }
 
     try {
       const response = await axios.post("http://localhost:5000/api/analyze-resume", formData, {

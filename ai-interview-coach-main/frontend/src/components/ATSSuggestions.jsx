@@ -1,6 +1,55 @@
 import React from 'react';
 import { CheckSquare, AlertTriangle, Lightbulb } from 'lucide-react';
 
+const transformSuggestion = (sug) => {
+  if (!sug) return null;
+  
+  if (typeof sug === 'string') {
+    return {
+      title: "Improvement",
+      icon: "💡",
+      description: sug
+    };
+  }
+  
+  if (typeof sug === 'object') {
+    if (sug.title && sug.description) {
+      return {
+        title: sug.title,
+        icon: sug.icon || "💡",
+        description: sug.description
+      };
+    }
+    
+    const category = sug.category || "general";
+    const message = sug.message || sug.suggestion || sug.description || JSON.stringify(sug);
+    
+    const mapping = {
+      formatting: { icon: "📄", title: "Formatting" },
+      content: { icon: "💻", title: "Content" },
+      layout: { icon: "📋", title: "Layout" },
+      skills: { icon: "🚀", title: "Skills" },
+      projects: { icon: "🛠", title: "Projects" },
+      experience: { icon: "💼", title: "Experience" }
+    };
+    
+    const normalizedCategory = category.toLowerCase().trim();
+    const mapped = mapping[normalizedCategory] || { icon: "💡", title: category.charAt(0).toUpperCase() + category.slice(1) };
+    
+    return {
+      title: mapped.title,
+      icon: mapped.icon,
+      description: message
+    };
+  }
+  
+  return {
+    title: "Suggestion",
+    icon: "💡",
+    description: String(sug)
+  };
+};
+
 export default function ATSSuggestions({ resumeData }) {
   const missingKeywords = resumeData?.ats_missing_keywords || [];
   const atsScore = resumeData?.resume_score || 0;
@@ -47,19 +96,25 @@ export default function ATSSuggestions({ resumeData }) {
           <Lightbulb className="w-4 h-4" />
           <h3 className="text-sm font-medium">Actionable Suggestions</h3>
         </div>
-        <ul className="space-y-2 text-sm text-gray-300">
+        <div className="space-y-4 divide-y divide-white/10">
           {suggestions.length > 0 ? suggestions.map((sug, idx) => {
-            const text = typeof sug === 'object' ? (sug.suggestion || sug.description || sug.title || JSON.stringify(sug)) : sug;
+            const transformed = transformSuggestion(sug);
+            if (!transformed) return null;
             return (
-              <li key={idx} className="flex items-start gap-2">
-                <span className="text-primary mt-0.5">•</span>
-                <span className="leading-tight">{text}</span>
-              </li>
+              <div key={idx} className={idx > 0 ? "pt-3 space-y-1" : "space-y-1"}>
+                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <span className="text-base select-none">{transformed.icon}</span>
+                  <span>{transformed.title}</span>
+                </div>
+                <p className="text-sm text-gray-300 pl-6 leading-relaxed">
+                  {transformed.description}
+                </p>
+              </div>
             );
           }) : (
-            <li className="text-gray-500 text-sm">Scan your resume to receive actionable suggestions.</li>
+            <p className="text-gray-500 text-sm">Scan your resume to receive actionable suggestions.</p>
           )}
-        </ul>
+        </div>
       </div>
     </div>
   );
