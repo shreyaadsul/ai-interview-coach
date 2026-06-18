@@ -1,49 +1,69 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { HelpCircle, ChevronLeft, ChevronRight, CheckCircle, Info, Clock, Loader2, AlertTriangle, Camera } from 'lucide-react';
-import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  Loader2,
+  AlertTriangle,
+  Mic,
+  Send,
+  SkipForward,
+  XCircle,
+} from 'lucide-react';
+import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import AIAvatar from './AIAvatar';
 
-const loadScript = (src) => {
-  return new Promise((resolve, reject) => {
-    if (document.querySelector(`script[src="${src}"]`)) {
-      resolve();
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = src;
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.appendChild(script);
+// ─── Utility ──────────────────────────────────────────────────────────────────
+const loadScript = (src) =>
+  new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
   });
-};
 
-export default function MockInterviewPage({ 
-  onSubmit, 
-  questionNumber, 
+const STAGES = ['Introduction', 'Resume', 'Project', 'Technical', 'HR', 'Follow-Up'];
+
+function getCurrentStage(qNum) {
+  if (qNum <= 2) return 'Introduction';
+  if (qNum <= 5) return 'Resume';
+  if (qNum <= 9) return 'Project';
+  if (qNum <= 14) return 'Technical';
+  if (qNum <= 17) return 'HR';
+  return 'Follow-Up';
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+export default function MockInterviewPage({
+  onSubmit,
+  questionNumber,
   setQuestionNumber,
   questions,
   setQuestions,
   sessionConfig,
-  resumeData
+  resumeData,
 }) {
   const [answers, setAnswers] = useState({});
   const [isGenerating, setIsGenerating] = useState(false);
   const totalQuestions = 20;
-  
-  // Anti-cheat states
+
+  // Anti-cheat
   const [warnings, setWarnings] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
-  const [warningMessage, setWarningMessage] = useState("");
+  const [warningMessage, setWarningMessage] = useState('');
   const showWarningRef = useRef(false);
   const isSubmittingRef = useRef(false);
 
-  // Object Detection and Phone tracking refs
+  // Object detection
   const detectorRef = useRef(null);
   const phoneVisibleRef = useRef(false);
   const phoneFirstSeenTimeRef = useRef(null);
   const warningLevel2TriggeredRef = useRef(false);
   const phoneLastSeenTimeRef = useRef(0);
 
-  // MediaPipe & Video states
+  // MediaPipe
   const videoRef = useRef(null);
   const [isModelLoading, setIsModelLoading] = useState(true);
   const [lookingAway, setLookingAway] = useState(false);
@@ -51,140 +71,127 @@ export default function MockInterviewPage({
   const animationRef = useRef(null);
   const streamRef = useRef(null);
 
-  const currentQuestion = questions[questionNumber - 1] || "";
-  const currentAnswer = answers[questionNumber] || "";
-  
-  const getCurrentStage = (qNum) => {
-    if (qNum <= 2) return "Introduction";
-    if (qNum <= 5) return "Resume";
-    if (qNum <= 9) return "Project";
-    if (qNum <= 14) return "Technical";
-    if (qNum <= 17) return "HR";
-    return "Follow-Up";
-  };
+  // Derived
+  const currentQuestion = questions[questionNumber - 1] || '';
+  const currentAnswer = answers[questionNumber] || '';
   const currentStage = getCurrentStage(questionNumber);
   const progressPercentage = Math.round((questionNumber / totalQuestions) * 100);
+  const isLastQuestion = questionNumber === totalQuestions;
 
-  const handleForceSubmit = useCallback((isDisqualified = false) => {
-    isSubmittingRef.current = true;
-    
-    try {
-      if (document.fullscreenElement) {
-        document.exitFullscreen();
-      }
-    } catch(err) {}
+  // AI interviewer state machine
+  const [interviewerState, setInterviewerState] = useState('Idle');
 
-    const allAnswers = questions.map((_, i) => answers[i + 1] || "No answer provided.");
-    if (onSubmit) {
-      onSubmit(questions, allAnswers, isDisqualified === true);
-    }
-  }, [answers, onSubmit, questions]);
-
-  const handleViolation = useCallback((message = "You have switched tabs, exited full-screen, or lost focus.") => {
-    // Don't trigger if already showing warning
-    if (showWarningRef.current) return;
-    showWarningRef.current = true;
-    
-    setWarningMessage(message);
-    setWarnings(prev => {
-      if (prev >= 2) {
-        alert("You have exceeded the maximum number of warnings. The interview will now be automatically submitted.");
-        handleForceSubmit(true);
-        return 3;
-      }
-      setShowWarning(true);
-      return prev + 1;
-    });
-  }, [handleForceSubmit]);
-
-  // Anti-cheat event listeners (Browser focus/fullscreen)
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden && !isSubmittingRef.current) handleViolation("You switched tabs or minimized the window.");
-    };
-    const handleBlur = () => {
-      // Small delay to allow permissions popups without instantly striking
-      setTimeout(() => {
-        if (!document.hasFocus() && !isSubmittingRef.current) {
-          handleViolation("You clicked outside the interview window or lost focus.");
+    if (isGenerating) {
+      setInterviewerState('Idle');
+      return;
+    }
+    if (currentQuestion) {
+      setInterviewerState('Speaking');
+      const timer = setTimeout(() => setInterviewerState('Listening'), 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentQuestion, isGenerating]);
+
+  // ─── Force submit ────────────────────────────────────────────────────────────
+  const handleForceSubmit = useCallback(
+    (isDisqualified = false) => {
+      isSubmittingRef.current = true;
+      try { if (document.fullscreenElement) document.exitFullscreen(); } catch (_) {}
+      const allAnswers = questions.map((_, i) => answers[i + 1] || 'No answer provided.');
+      if (onSubmit) onSubmit(questions, allAnswers, isDisqualified === true);
+    },
+    [answers, onSubmit, questions]
+  );
+
+  // ─── Violation handler ───────────────────────────────────────────────────────
+  const handleViolation = useCallback(
+    (message = 'You have switched tabs, exited full-screen, or lost focus.') => {
+      if (showWarningRef.current) return;
+      showWarningRef.current = true;
+      setWarningMessage(message);
+      setWarnings((prev) => {
+        if (prev >= 2) {
+          alert('You have exceeded the maximum number of warnings. The interview will now be automatically submitted.');
+          handleForceSubmit(true);
+          return 3;
         }
+        setShowWarning(true);
+        return prev + 1;
+      });
+    },
+    [handleForceSubmit]
+  );
+
+  // ─── Anti-cheat event listeners ──────────────────────────────────────────────
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden && !isSubmittingRef.current)
+        handleViolation('You switched tabs or minimized the window.');
+    };
+    const onBlur = () => {
+      setTimeout(() => {
+        if (!document.hasFocus() && !isSubmittingRef.current)
+          handleViolation('You clicked outside the interview window.');
       }, 500);
     };
-    const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && !isSubmittingRef.current) handleViolation("You exited full-screen mode.");
+    const onFullscreen = () => {
+      if (!document.fullscreenElement && !isSubmittingRef.current)
+        handleViolation('You exited full-screen mode.');
     };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("blur", handleBlur);
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onBlur);
+    document.addEventListener('fullscreenchange', onFullscreen);
     return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("blur", handleBlur);
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', onBlur);
+      document.removeEventListener('fullscreenchange', onFullscreen);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Initialize MediaPipe, Object Detector, and Camera
+  // ─── MediaPipe init ───────────────────────────────────────────────────────────
   useEffect(() => {
     let isMounted = true;
-    const initializeMediaPipe = async () => {
+    const init = async () => {
       try {
         const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
         );
         const landmarker = await FaceLandmarker.createFromOptions(vision, {
           baseOptions: {
-            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
-            delegate: "GPU"
+            modelAssetPath:
+              'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+            delegate: 'GPU',
           },
           outputFaceBlendshapes: false,
           outputFacialTransformationMatrixes: true,
-          runningMode: "VIDEO",
-          numFaces: 1
+          runningMode: 'VIDEO',
+          numFaces: 1,
         });
-        
-        if (!isMounted) {
-          landmarker.close();
-          return;
-        }
+        if (!isMounted) { landmarker.close(); return; }
         faceLandmarkerRef.current = landmarker;
 
-        // Load COCO-SSD for prohibited object detection (phone, tablet, etc.)
-        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow/tfjs");
-        await loadScript("https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd");
+        await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs');
+        await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd');
         const detector = await window.cocoSsd.load();
-        if (!isMounted) {
-          return;
-        }
+        if (!isMounted) return;
         detectorRef.current = detector;
-
         setIsModelLoading(false);
 
-        // Start camera
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        if (!isMounted) {
-          stream.getTracks().forEach(t => t.stop());
-          return;
-        }
+        if (!isMounted) { stream.getTracks().forEach((t) => t.stop()); return; }
         streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
+        if (videoRef.current) videoRef.current.srcObject = stream;
       } catch (err) {
-        console.error("Camera or Proctoring Model init failed", err);
-        if (isMounted) {
-          handleViolation("Camera disconnected, denied, or unavailable.");
-        }
+        console.error('Camera / proctoring init failed', err);
+        if (isMounted) handleViolation('Camera disconnected or unavailable.');
       }
     };
-
-    initializeMediaPipe();
-
+    init();
     return () => {
       isMounted = false;
-      if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
+      if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
       if (faceLandmarkerRef.current) faceLandmarkerRef.current.close();
     };
@@ -192,482 +199,615 @@ export default function MockInterviewPage({
   }, []);
 
   const detectObjects = async () => {
-    if (videoRef.current && detectorRef.current && !showWarningRef.current) {
-      try {
-        const predictions = await detectorRef.current.detect(videoRef.current);
-        const phone = predictions.find(p => p.class === "cell phone" && p.score > 0.5);
-        
-        if (phone) {
-          const now = Date.now();
-          if (!phoneVisibleRef.current) {
-            phoneVisibleRef.current = true;
-            phoneFirstSeenTimeRef.current = now;
-            warningLevel2TriggeredRef.current = false;
-            
-            if (now - phoneLastSeenTimeRef.current > 5000 && phoneLastSeenTimeRef.current !== 0) {
-              handleViolation("Prohibited object detected: Repeated mobile phone/device usage is strictly forbidden!");
-            } else {
-              handleViolation("Prohibited object detected: Mobile phone/device usage is strictly forbidden!");
-            }
-          } else {
-            const duration = now - phoneFirstSeenTimeRef.current;
-            if (duration > 3000 && !warningLevel2TriggeredRef.current) {
-              warningLevel2TriggeredRef.current = true;
-              handleViolation("Prohibited object detected: Mobile phone remains visible for more than 3 seconds! Put it away immediately.");
-            }
-          }
-          phoneLastSeenTimeRef.current = now;
+    if (!videoRef.current || !detectorRef.current || showWarningRef.current) return;
+    try {
+      const predictions = await detectorRef.current.detect(videoRef.current);
+      const phone = predictions.find((p) => p.class === 'cell phone' && p.score > 0.5);
+      if (phone) {
+        const now = Date.now();
+        if (!phoneVisibleRef.current) {
+          phoneVisibleRef.current = true;
+          phoneFirstSeenTimeRef.current = now;
+          warningLevel2TriggeredRef.current = false;
+          handleViolation('Prohibited object detected: Mobile phone usage is strictly forbidden!');
         } else {
-          if (phoneVisibleRef.current) {
-            phoneVisibleRef.current = false;
-            phoneLastSeenTimeRef.current = Date.now();
+          const dur = now - phoneFirstSeenTimeRef.current;
+          if (dur > 3000 && !warningLevel2TriggeredRef.current) {
+            warningLevel2TriggeredRef.current = true;
+            handleViolation('Phone visible for more than 3 seconds! Put it away immediately.');
           }
         }
-      } catch (err) {
-        console.error("Object detection error:", err);
+        phoneLastSeenTimeRef.current = now;
+      } else {
+        if (phoneVisibleRef.current) {
+          phoneVisibleRef.current = false;
+          phoneLastSeenTimeRef.current = Date.now();
+        }
       }
+    } catch (err) {
+      console.error('Object detection error:', err);
     }
   };
 
   const handleVideoLoad = () => {
     let lastVideoTime = -1;
-    let awayFrames = 0; // Require looking away for X frames before triggering warning
-    let lastObjectDetectTime = 0;
-    
-    const predictWebcam = async () => {
+    let awayFrames = 0;
+    let lastObjTime = 0;
+    const predict = async () => {
       if (videoRef.current && faceLandmarkerRef.current) {
-        let startTimeMs = performance.now();
+        const t = performance.now();
         if (lastVideoTime !== videoRef.current.currentTime) {
           lastVideoTime = videoRef.current.currentTime;
-          
           try {
-            const results = faceLandmarkerRef.current.detectForVideo(videoRef.current, startTimeMs);
-            
-            if (results.facialTransformationMatrixes && results.facialTransformationMatrixes.length > 0) {
-              const matrix = results.facialTransformationMatrixes[0].data;
-              const yaw = Math.atan2(matrix[8], matrix[10]);
-              const pitch = Math.atan2(-matrix[9], Math.sqrt(matrix[8] ** 2 + matrix[10] ** 2));
-              
-              const yawDegrees = (yaw * 180) / Math.PI;
-              const pitchDegrees = (pitch * 180) / Math.PI;
- 
-              // Threshold for looking away (relaxed to 35 degrees)
-              if (Math.abs(yawDegrees) > 35 || Math.abs(pitchDegrees) > 35) {
-                awayFrames++;
-              } else {
-                awayFrames = 0;
-              }
- 
-              // Running at ~4 FPS, 8 frames = ~2 seconds
-              if (awayFrames > 8) { 
-                 handleViolation("AI Head Tracking detected you looking away from the screen!");
-                 awayFrames = 0; // reset
-              }
+            const res = faceLandmarkerRef.current.detectForVideo(videoRef.current, t);
+            if (res.facialTransformationMatrixes?.length > 0) {
+              const m = res.facialTransformationMatrixes[0].data;
+              const yaw = (Math.atan2(m[8], m[10]) * 180) / Math.PI;
+              const pitch = (Math.atan2(-m[9], Math.sqrt(m[8] ** 2 + m[10] ** 2)) * 180) / Math.PI;
+              if (Math.abs(yaw) > 35 || Math.abs(pitch) > 35) awayFrames++;
+              else awayFrames = 0;
+              if (awayFrames > 8) { handleViolation('AI detected you looking away from the screen!'); awayFrames = 0; }
               setLookingAway(awayFrames > 2);
             } else {
-              // No face detected
               awayFrames++;
-              if (awayFrames > 12) { // ~3 seconds of no face at 4 FPS
-                 handleViolation("AI could not detect your face. Please stay in frame.");
-                 awayFrames = 0;
-              }
+              if (awayFrames > 12) { handleViolation('AI could not detect your face. Please stay in frame.'); awayFrames = 0; }
             }
-          } catch(e) {
-            console.error("Face landmark error:", e);
-          }
+          } catch (e) { console.error('Face landmark error:', e); }
         }
-
-        // Run object detection every 500ms
         const now = Date.now();
-        if (now - lastObjectDetectTime > 500) {
-          lastObjectDetectTime = now;
-          await detectObjects();
-        }
-
-        // Throttle to ~4 FPS to prevent UI lagging
-        setTimeout(() => {
-          animationRef.current = requestAnimationFrame(predictWebcam);
-        }, 250);
+        if (now - lastObjTime > 500) { lastObjTime = now; await detectObjects(); }
+        setTimeout(() => { animationRef.current = requestAnimationFrame(predict); }, 250);
       }
     };
-    predictWebcam();
+    predict();
   };
 
-
-  const formatTime = (seconds) => {
-    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const s = (seconds % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
-
+  // ─── Handlers ────────────────────────────────────────────────────────────────
   const handleTextareaChange = (e) => {
-    const text = e.target.value;
-    if (text.length <= 1000) {
-      setAnswers({
-        ...answers,
-        [questionNumber]: text
-      });
-    }
+    if (e.target.value.length <= 1000)
+      setAnswers({ ...answers, [questionNumber]: e.target.value });
   };
 
-  const handlePrev = () => {
-    if (questionNumber > 1) {
-      setQuestionNumber(questionNumber - 1);
-    }
-  };
-
+  const handlePrev = () => { if (questionNumber > 1) setQuestionNumber(questionNumber - 1); };
   const handleNext = () => {
-    const currentAns = answers[questionNumber];
-    if (!currentAns || !currentAns.trim()) {
-      alert("Please answer the question before proceeding.");
-      return;
-    }
-    if (questionNumber < questions.length) {
-      setQuestionNumber(questionNumber + 1);
-    }
+    const a = answers[questionNumber];
+    if (!a?.trim()) { alert('Please answer the question before proceeding.'); return; }
+    if (questionNumber < questions.length) setQuestionNumber(questionNumber + 1);
   };
 
-  const isLastQuestion = questionNumber === totalQuestions;
-
-  const handleSkipQuestion = async () => {
-    const updatedAnswers = {
-      ...answers,
-      [questionNumber]: "skipped"
-    };
-    setAnswers(updatedAnswers);
-
-    if (questionNumber < questions.length) {
-      setQuestionNumber(questionNumber + 1);
-      return;
-    }
-
-    if (isLastQuestion) {
-      isSubmittingRef.current = true;
-      try {
-        if (document.fullscreenElement) {
-          document.exitFullscreen();
-        }
-      } catch(err) {}
-
-      const allAnswers = questions.map((_, i) => updatedAnswers[i + 1] || "No answer provided.");
-      if (onSubmit) {
-        onSubmit(questions, allAnswers, false);
-      }
-      return;
-    }
-
+  const generateNextQuestion = async (updatedAnswers) => {
     setIsGenerating(true);
     try {
-      const history = questions.map((q, i) => ({
-        question: q,
-        answer: updatedAnswers[i + 1] || "No answer provided."
-      }));
-
-      const response = await fetch("http://localhost:5000/api/next-question", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const history = questions.map((q, i) => ({ question: q, answer: updatedAnswers[i + 1] || 'No answer provided.' }));
+      const res = await fetch('http://localhost:5000/api/next-question', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           resume_data: resumeData,
-          history: history,
+          history,
           target_role: sessionConfig?.target_role,
           interview_type: sessionConfig?.interview_type,
           difficulty: sessionConfig?.difficulty,
-          stage: getCurrentStage(questionNumber + 1)
-        })
+          stage: getCurrentStage(questionNumber + 1),
+        }),
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        const nextQ = data.question || "Can you elaborate on your previous answer?";
-        setQuestions([...questions, nextQ]);
+      if (res.ok) {
+        const data = await res.json();
+        setQuestions([...questions, data.question || 'Can you elaborate on your previous answer?']);
         setQuestionNumber(questionNumber + 1);
       }
-    } catch (err) {
-      console.error("Failed to generate next question", err);
-    } finally {
-      setIsGenerating(false);
-    }
+    } catch (err) { console.error('Failed to generate next question', err); }
+    finally { setIsGenerating(false); }
   };
 
   const handleSaveAndNext = async () => {
-    const currentAns = answers[questionNumber];
-    if (!currentAns || !currentAns.trim()) {
-      alert("Please answer the question before proceeding.");
-      return;
-    }
+    const a = answers[questionNumber];
+    if (!a?.trim()) { alert('Please answer the question before proceeding.'); return; }
+    if (questionNumber < questions.length) { setQuestionNumber(questionNumber + 1); return; }
+    if (isLastQuestion) { handleForceSubmit(); return; }
+    await generateNextQuestion(answers);
+  };
 
-    if (questionNumber < questions.length) {
-      setQuestionNumber(questionNumber + 1);
-      return;
-    }
-
+  const handleSkipQuestion = async () => {
+    const updated = { ...answers, [questionNumber]: 'skipped' };
+    setAnswers(updated);
+    if (questionNumber < questions.length) { setQuestionNumber(questionNumber + 1); return; }
     if (isLastQuestion) {
-      handleForceSubmit();
+      isSubmittingRef.current = true;
+      try { if (document.fullscreenElement) document.exitFullscreen(); } catch (_) {}
+      const allAnswers = questions.map((_, i) => updated[i + 1] || 'No answer provided.');
+      if (onSubmit) onSubmit(questions, allAnswers, false);
       return;
     }
-
-    setIsGenerating(true);
-    try {
-      const history = questions.map((q, i) => ({
-        question: q,
-        answer: answers[i + 1] || "No answer provided."
-      }));
-
-      const response = await fetch("http://localhost:5000/api/next-question", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          resume_data: resumeData,
-          history: history,
-          target_role: sessionConfig?.target_role,
-          interview_type: sessionConfig?.interview_type,
-          difficulty: sessionConfig?.difficulty,
-          stage: getCurrentStage(questionNumber + 1)
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const nextQ = data.question || "Can you elaborate on your previous answer?";
-        setQuestions([...questions, nextQ]);
-        setQuestionNumber(questionNumber + 1);
-      }
-    } catch (err) {
-      console.error("Failed to generate next question", err);
-    } finally {
-      setIsGenerating(false);
-    }
+    await generateNextQuestion(updated);
   };
 
   const handleResumeAfterWarning = async () => {
-    try {
-      if (document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen();
-      }
-    } catch (err) {}
+    try { if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); } catch (_) {}
     setShowWarning(false);
-    setTimeout(() => {
-      showWarningRef.current = false;
-    }, 1000); // Wait a second before unlocking to prevent rapid firing
+    setTimeout(() => { showWarningRef.current = false; }, 1000);
   };
 
-
+  // ─── Render ───────────────────────────────────────────────────────────────────
   return (
     <>
+      {/* ── Proctoring Warning Modal ── */}
       {showWarning && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-navy-900/95 backdrop-blur-md">
-          <div className="bg-navy-800 border border-danger/50 rounded-2xl shadow-2xl shadow-danger/20 p-8 max-w-lg w-full text-center space-y-6">
-            <div className="w-16 h-16 bg-danger/10 rounded-full flex items-center justify-center mx-auto">
-              <AlertTriangle className="w-8 h-8 text-danger" />
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 16,
+          background: 'rgba(10,12,28,0.96)',
+          backdropFilter: 'blur(12px)',
+        }}>
+          <div style={{
+            background: '#0f172a',
+            border: '1px solid rgba(239,68,68,0.4)',
+            borderRadius: 20,
+            boxShadow: '0 25px 60px rgba(239,68,68,0.15)',
+            padding: 36,
+            maxWidth: 480,
+            width: '100%',
+            textAlign: 'center',
+          }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'rgba(239,68,68,0.1)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 20px',
+            }}>
+              <AlertTriangle size={28} color="#ef4444" />
             </div>
-            <div>
-              <h2 className="text-2xl font-bold text-white mb-2">Proctoring Violation</h2>
-              <p className="text-gray-300">
-                {warningMessage}
+            <h2 style={{ color: '#fff', fontSize: '1.4rem', fontWeight: 800, marginBottom: 8 }}>Proctoring Violation</h2>
+            <p style={{ color: '#94a3b8', marginBottom: 20 }}>{warningMessage}</p>
+            <div style={{
+              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+              borderRadius: 12, padding: '14px 20px', marginBottom: 24,
+            }}>
+              <p style={{ color: '#f87171', fontWeight: 700, fontSize: '1.1rem', marginBottom: 4 }}>
+                Warning {warnings} of 3
               </p>
-            </div>
-            <div className="bg-danger/10 border border-danger/20 rounded-xl p-4">
-              <p className="text-danger font-bold text-lg">Warning {warnings} of 3</p>
-              <p className="text-danger/80 text-sm mt-1">If you receive 3 warnings, the interview will be automatically terminated.</p>
+              <p style={{ color: 'rgba(248,113,113,0.75)', fontSize: '0.8rem' }}>
+                3 warnings will automatically terminate your interview.
+              </p>
             </div>
             <button
               onClick={handleResumeAfterWarning}
-              className="w-full py-3.5 rounded-xl bg-danger text-white font-bold hover:bg-danger/90 transition-colors"
+              style={{
+                width: '100%', padding: '14px 0',
+                borderRadius: 12, border: 'none',
+                background: '#ef4444', color: '#fff',
+                fontWeight: 700, fontSize: '0.95rem', cursor: 'pointer',
+              }}
             >
-              I Understand, Resume Interview
+              I Understand — Resume Interview
             </button>
           </div>
         </div>
       )}
 
-      <div className="space-y-8 select-none">
-        <div className="flex items-center justify-between">
+      {/* ── Page Root ── */}
+      <div className="select-none" style={{ minHeight: '100vh' }}>
+
+        {/* ── Page Header ── */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
           <div>
             <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
               Mock Interview
             </h1>
-            <p className="text-gray-400 text-sm mt-1">Interactive mock session designed to hone your interview responses.</p>
+            <p className="text-gray-400 text-sm mt-1">AI-proctored session — stay focused and answer each question clearly.</p>
           </div>
-          
-          {/* Live Camera PIP */}
-          <div className="relative group">
-            <div className={`w-40 h-30 rounded-xl overflow-hidden border-2 transition-colors duration-300 ${lookingAway ? 'border-danger' : 'border-primary/50'}`}>
+
+          {/* Camera PIP */}
+          <div style={{ position: 'relative' }}>
+            <div style={{
+              width: 144, height: 108, borderRadius: 12, overflow: 'hidden',
+              border: `2px solid ${lookingAway ? '#ef4444' : 'rgba(124,58,237,0.5)'}`,
+              background: '#0f172a',
+              transition: 'border-color 0.3s',
+            }}>
               {isModelLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-navy-800">
-                  <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: '#0f172a',
+                }}>
+                  <Loader2 size={20} color="#7c3aed" className="animate-spin" />
                 </div>
               )}
-              <video 
+              <video
                 ref={videoRef}
                 onLoadedData={handleVideoLoad}
-                autoPlay 
-                playsInline
-                muted
-                className="w-full h-full object-cover transform scale-x-[-1]" 
+                autoPlay playsInline muted
+                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
               />
             </div>
-            <div className={`absolute -bottom-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-bold text-white whitespace-nowrap transition-colors ${lookingAway ? 'bg-danger' : 'bg-primary'}`}>
-              {lookingAway ? "LOOKING AWAY" : "AI TRACKING"}
+            <div style={{
+              position: 'absolute', bottom: -10, left: '50%', transform: 'translateX(-50%)',
+              padding: '2px 10px', borderRadius: 999,
+              background: lookingAway ? '#ef4444' : '#7c3aed',
+              fontSize: 9, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap',
+              transition: 'background 0.3s',
+            }}>
+              {lookingAway ? '⚠ LOOKING AWAY' : '● AI TRACKING'}
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="glass p-6 border border-white/10 rounded-2xl space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-200">Interview Progress</span>
-                <div className="flex items-center gap-4">
-                  <span className="text-xs text-primary font-medium bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-md">
-                    Estimated 15-20 Mins
+        {/* ── Main 65/35 Layout ── */}
+        <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+
+          {/* ════════════════════════════════════════
+              LEFT — 65% — Interview Content
+          ════════════════════════════════════════ */}
+          <div style={{ flex: '0 0 65%', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+            {/* Progress Card */}
+            <div className="glass border border-white/10 rounded-2xl p-6 space-y-4">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ color: '#e2e8f0', fontWeight: 600, fontSize: '0.875rem' }}>Interview Progress</span>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <span style={{
+                    fontSize: '0.7rem', fontWeight: 600,
+                    background: 'rgba(124,58,237,0.1)', color: '#a78bfa',
+                    border: '1px solid rgba(124,58,237,0.25)', borderRadius: 6, padding: '3px 10px',
+                  }}>
+                    ~15–20 mins
                   </span>
-                  <span className="text-xs text-gray-400 font-medium bg-white/5 border border-white/10 px-2.5 py-1 rounded-md">
-                    Question {questionNumber} of {totalQuestions}
+                  <span style={{
+                    fontSize: '0.7rem', fontWeight: 600,
+                    background: 'rgba(255,255,255,0.05)', color: '#94a3b8',
+                    border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '3px 10px',
+                  }}>
+                    Q {questionNumber} / {totalQuestions}
                   </span>
                 </div>
               </div>
-              
-              <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden border border-white/10">
-                <div 
-                  className="h-full rounded-full transition-all duration-500 ease-out bg-gradient-to-r from-primary to-secondary"
-                  style={{ width: `${progressPercentage}%` }}
-                />
+
+              {/* Progress Bar */}
+              <div style={{
+                width: '100%', height: 8, borderRadius: 999,
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  height: '100%',
+                  width: `${progressPercentage}%`,
+                  borderRadius: 999,
+                  background: 'linear-gradient(to right, #7c3aed, #6366f1)',
+                  transition: 'width 0.5s ease-out',
+                }} />
               </div>
 
-              {/* Stage Tracker */}
-              <div className="flex gap-2 mt-4 text-xs font-semibold text-gray-400 overflow-x-auto pb-2 scrollbar-hide">
-                {["Introduction", "Resume", "Project", "Technical", "HR", "Follow-Up"].map((stage) => {
+              {/* Stage Pills */}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {STAGES.map((stage, idx) => {
+                  const stageIdx = STAGES.indexOf(currentStage);
                   const isActive = stage === currentStage;
-                  const isPast = ["Introduction", "Resume", "Project", "Technical", "HR", "Follow-Up"].indexOf(stage) < ["Introduction", "Resume", "Project", "Technical", "HR", "Follow-Up"].indexOf(currentStage);
+                  const isPast = idx < stageIdx;
                   return (
-                    <span key={stage} className={`px-3 py-1.5 rounded-lg border whitespace-nowrap flex items-center gap-1.5 ${isActive ? 'bg-primary/20 text-primary border-primary/30' : isPast ? 'bg-success/10 text-success border-success/20' : 'bg-white/5 border-white/5'}`}>
-                      {stage} {isActive ? "🔄" : isPast ? "✓" : ""}
+                    <span
+                      key={stage}
+                      style={{
+                        padding: '5px 12px', borderRadius: 8,
+                        fontSize: '0.7rem', fontWeight: 700,
+                        whiteSpace: 'nowrap',
+                        border: `1px solid ${isActive ? 'rgba(124,58,237,0.35)' : isPast ? 'rgba(34,197,94,0.25)' : 'rgba(255,255,255,0.06)'}`,
+                        background: isActive ? 'rgba(124,58,237,0.18)' : isPast ? 'rgba(34,197,94,0.08)' : 'rgba(255,255,255,0.03)',
+                        color: isActive ? '#a78bfa' : isPast ? '#4ade80' : '#64748b',
+                      }}
+                    >
+                      {isPast ? '✓ ' : ''}{stage}{isActive ? ' ◉' : ''}
                     </span>
                   );
                 })}
               </div>
             </div>
 
-            <div className="glass p-6 border border-white/10 rounded-2xl flex items-start gap-4 select-none">
-              <div className="w-2.5 h-2.5 rounded-full bg-success mt-2 flex-shrink-0 animate-pulse" />
+            {/* Question Card */}
+            <div className="glass border border-white/10 rounded-2xl p-6" style={{ display: 'flex', gap: 14 }}>
+              <div style={{
+                width: 10, height: 10, borderRadius: '50%',
+                background: '#22c55e', flexShrink: 0, marginTop: 6,
+                boxShadow: '0 0 10px #22c55e',
+                animation: 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite',
+              }} />
               <div>
-                <span className="text-xs font-semibold text-primary uppercase tracking-wider">Question {questionNumber}</span>
-                <p className="text-white font-medium text-lg mt-1 leading-relaxed">
-                  {currentQuestion}
+                <span style={{
+                  fontSize: '0.65rem', fontWeight: 700,
+                  color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.08em',
+                }}>
+                  Question {questionNumber} · {currentStage}
+                </span>
+                <p style={{ color: '#fff', fontWeight: 500, fontSize: '1.1rem', marginTop: 6, lineHeight: 1.65 }}>
+                  {currentQuestion || 'Loading question…'}
                 </p>
               </div>
             </div>
 
-            <div className="glass p-6 border border-white/10 rounded-2xl space-y-3">
-              <div className="flex items-center justify-between">
-                <label htmlFor="answer-input" className="text-sm font-semibold text-gray-200">
+            {/* Answer Card */}
+            <div className="glass border border-white/10 rounded-2xl p-6 space-y-3">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label htmlFor="answer-input" style={{ fontSize: '0.875rem', fontWeight: 600, color: '#e2e8f0' }}>
                   Your Answer
                 </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.7rem', color: '#64748b' }}>
+                  <Mic size={12} />
+                  <span>Type your response below</span>
+                </div>
               </div>
-              <div className="relative">
+              <div style={{ position: 'relative' }}>
                 <textarea
                   id="answer-input"
-                  className="w-full min-h-[220px] p-4 bg-navy-900/50 border border-white/10 focus:border-primary/60 focus:ring-2 focus:ring-primary/20 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none transition-all duration-300 resize-y"
-                  placeholder="Type your answer here..."
+                  style={{
+                    width: '100%', minHeight: 200,
+                    padding: '14px 16px',
+                    background: 'rgba(15,23,42,0.5)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    borderRadius: 12,
+                    color: '#fff', fontSize: '0.875rem',
+                    resize: 'vertical', outline: 'none',
+                    fontFamily: 'inherit', lineHeight: 1.6,
+                    transition: 'border-color 0.2s',
+                    boxSizing: 'border-box',
+                  }}
+                  onFocus={(e) => { e.target.style.borderColor = 'rgba(124,58,237,0.5)'; }}
+                  onBlur={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
+                  placeholder="Type your answer here... Be specific, use examples, and show your thought process."
                   value={currentAnswer}
                   onChange={handleTextareaChange}
                   onCopy={(e) => e.preventDefault()}
                   onPaste={(e) => e.preventDefault()}
                   onCut={(e) => e.preventDefault()}
                 />
-                <div className="absolute bottom-4 right-4 text-xs font-medium text-gray-500 bg-navy-900/80 px-2 py-1 rounded border border-white/5">
+                <div style={{
+                  position: 'absolute', bottom: 10, right: 12,
+                  fontSize: '0.7rem', fontWeight: 600,
+                  color: currentAnswer.length > 900 ? '#f59e0b' : '#475569',
+                  background: 'rgba(15,23,42,0.9)', padding: '2px 8px', borderRadius: 6,
+                }}>
                   {currentAnswer.length}/1000
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-4">
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: 10 }}>
               <button
                 onClick={handleSaveAndNext}
                 disabled={isGenerating}
-                className="flex-1 py-3.5 rounded-xl bg-gradient-to-r from-primary to-secondary hover:shadow-lg hover:shadow-primary/25 text-white font-semibold transition-all duration-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-2"
+                style={{
+                  flex: 1, padding: '13px 0',
+                  borderRadius: 12, border: 'none',
+                  background: isGenerating ? 'rgba(124,58,237,0.4)' : 'linear-gradient(135deg, #7c3aed, #6366f1)',
+                  color: '#fff', fontWeight: 700, fontSize: '0.875rem',
+                  cursor: isGenerating ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  boxShadow: isGenerating ? 'none' : '0 4px 20px rgba(124,58,237,0.3)',
+                  transition: 'all 0.2s',
+                  opacity: isGenerating ? 0.6 : 1,
+                }}
               >
-                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                {isGenerating ? "Analyzing & Generating..." : (isLastQuestion ? "Save Answer & Next Question" : "View Next Question")}
+                {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Send size={15} />}
+                {isGenerating
+                  ? 'Analyzing & Generating...'
+                  : isLastQuestion
+                  ? 'Submit Interview'
+                  : 'Save & Next Question'}
               </button>
+
               <button
-                type="button"
                 onClick={handleSkipQuestion}
                 disabled={isGenerating}
-                className="px-6 py-3.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 font-semibold transition-all duration-300 text-sm focus:outline-none focus:ring-2"
+                style={{
+                  padding: '13px 20px', borderRadius: 12,
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'rgba(255,255,255,0.04)',
+                  color: '#94a3b8', fontWeight: 600, fontSize: '0.875rem',
+                  cursor: isGenerating ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 7,
+                  transition: 'all 0.2s',
+                }}
               >
-                Skip Question
+                <SkipForward size={15} />
+                Skip
               </button>
+
               <button
                 onClick={handleForceSubmit}
-                className="px-6 py-3.5 rounded-xl bg-danger/20 hover:bg-danger/30 text-danger border border-danger/30 font-semibold transition-all duration-300 text-sm focus:outline-none focus:ring-2 focus:ring-danger/50"
+                style={{
+                  padding: '13px 18px', borderRadius: 12,
+                  border: '1px solid rgba(239,68,68,0.25)',
+                  background: 'rgba(239,68,68,0.08)',
+                  color: '#f87171', fontWeight: 600, fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 7,
+                  transition: 'all 0.2s',
+                }}
               >
-                End Interview Early
+                <XCircle size={15} />
+                End Early
+              </button>
+            </div>
+
+            {/* Nav Row */}
+            <div style={{
+              display: 'flex', justifyContent: 'space-between',
+              paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.05)',
+            }}>
+              <button
+                onClick={handlePrev}
+                disabled={questionNumber === 1}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '10px 18px', borderRadius: 10,
+                  border: '1px solid rgba(124,58,237,0.3)',
+                  background: 'rgba(255,255,255,0.03)',
+                  color: questionNumber === 1 ? '#334155' : '#94a3b8',
+                  fontWeight: 600, fontSize: '0.8rem', cursor: questionNumber === 1 ? 'not-allowed' : 'pointer',
+                  opacity: questionNumber === 1 ? 0.4 : 1,
+                }}
+              >
+                <ChevronLeft size={15} /> Previous
+              </button>
+              <button
+                onClick={handleNext}
+                disabled={isLastQuestion}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '10px 18px', borderRadius: 10,
+                  border: '1px solid rgba(124,58,237,0.3)',
+                  background: 'rgba(255,255,255,0.03)',
+                  color: isLastQuestion ? '#334155' : '#94a3b8',
+                  fontWeight: 600, fontSize: '0.8rem', cursor: isLastQuestion ? 'not-allowed' : 'pointer',
+                  opacity: isLastQuestion ? 0.4 : 1,
+                }}
+              >
+                Next Question <ChevronRight size={15} />
               </button>
             </div>
           </div>
 
-          <div className="lg:col-span-1 space-y-6">
-            <div className="glass p-6 border border-primary/20 rounded-2xl space-y-4">
-              <div className="flex items-center gap-2 text-primary">
-                <Info className="w-5 h-5" />
-                <h3 className="font-semibold text-white">Interview Tips</h3>
+          {/* ════════════════════════════════════════
+              RIGHT — 35% — AI Interviewer Panel
+          ════════════════════════════════════════ */}
+          <div style={{ flex: '0 0 35%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* ── AI Interviewer 3D Viewport ── */}
+            <div style={{
+              borderRadius: 20,
+              overflow: 'hidden',
+              border: '1px solid rgba(124,58,237,0.25)',
+              background: 'linear-gradient(145deg, #070c1f, #0d1530)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
+              position: 'relative',
+            }}>
+              {/* Card Header */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '14px 18px',
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
+                background: 'rgba(255,255,255,0.03)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {/* Animated interviewer avatar icon */}
+                  <div style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 14,
+                    boxShadow: '0 0 12px rgba(124,58,237,0.4)',
+                  }}>
+                    🤵
+                  </div>
+                  <div>
+                    <p style={{ color: '#e2e8f0', fontWeight: 700, fontSize: '0.875rem', lineHeight: 1 }}>
+                      AI Interviewer
+                    </p>
+                    <p style={{ color: '#64748b', fontSize: '0.65rem', marginTop: 2 }}>
+                      {sessionConfig?.target_role || 'HR Professional'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* State badge */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '4px 12px', borderRadius: 999,
+                  background: interviewerState === 'Speaking'
+                    ? 'rgba(34,197,94,0.12)'
+                    : interviewerState === 'Listening'
+                    ? 'rgba(168,85,247,0.12)'
+                    : 'rgba(59,130,246,0.12)',
+                  border: `1px solid ${
+                    interviewerState === 'Speaking'
+                      ? 'rgba(34,197,94,0.3)'
+                      : interviewerState === 'Listening'
+                      ? 'rgba(168,85,247,0.3)'
+                      : 'rgba(59,130,246,0.3)'
+                  }`,
+                }}>
+                  <span style={{
+                    width: 6, height: 6, borderRadius: '50%',
+                    background: interviewerState === 'Speaking' ? '#22c55e' : interviewerState === 'Listening' ? '#a855f7' : '#3b82f6',
+                    boxShadow: `0 0 6px ${interviewerState === 'Speaking' ? '#22c55e' : interviewerState === 'Listening' ? '#a855f7' : '#3b82f6'}`,
+                    display: 'inline-block',
+                  }} />
+                  <span style={{
+                    fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+                    color: interviewerState === 'Speaking' ? '#4ade80' : interviewerState === 'Listening' ? '#c084fc' : '#60a5fa',
+                  }}>
+                    {interviewerState}
+                  </span>
+                </div>
               </div>
-              <ul className="space-y-3">
-                <li className="flex items-start gap-2.5 text-sm text-gray-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
-                  <span>The interview consists of 6 structured stages (20 questions).</span>
-                </li>
-                <li className="flex items-start gap-2.5 text-sm text-gray-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
-                  <span className="text-danger font-medium">Do not exit fullscreen, switch tabs, or look away from the camera.</span>
-                </li>
-                <li className="flex items-start gap-2.5 text-sm text-gray-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
-                  <span>Copy and pasting is strictly disabled.</span>
-                </li>
+
+              {/* 3D Canvas — tall viewport */}
+              <div style={{ height: 480, position: 'relative' }}>
+                {/* Subtle gradient overlay at bottom to blend into next card */}
+                <div style={{
+                  position: 'absolute', bottom: 0, left: 0, right: 0, height: 60,
+                  background: 'linear-gradient(to bottom, transparent, rgba(7,12,31,0.7))',
+                  zIndex: 2, pointerEvents: 'none',
+                }} />
+                <AIAvatar aiState={interviewerState} />
+              </div>
+            </div>
+
+            {/* ── Interview Tips ── */}
+            <div className="glass border border-white/10 rounded-2xl p-5 space-y-3">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Info size={16} color="#7c3aed" />
+                <span style={{ fontWeight: 700, color: '#fff', fontSize: '0.875rem' }}>Interview Tips</span>
+              </div>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[
+                  '20 questions across 6 structured stages.',
+                  'Do not switch tabs, exit fullscreen, or look away.',
+                  'Copy & paste is strictly disabled.',
+                  'Use STAR method: Situation → Task → Action → Result.',
+                ].map((tip, i) => (
+                  <li key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                    <span style={{
+                      width: 6, height: 6, borderRadius: '50%', background: '#7c3aed',
+                      flexShrink: 0, marginTop: 6,
+                    }} />
+                    <span style={{ color: '#94a3b8', fontSize: '0.8rem', lineHeight: 1.5 }}>{tip}</span>
+                  </li>
+                ))}
               </ul>
             </div>
-            
-            {/* Proctoring Status Card */}
-            <div className="glass p-6 border border-danger/20 rounded-2xl space-y-4 bg-danger/5">
-              <div className="flex items-center gap-2 text-danger">
-                <AlertTriangle className="w-5 h-5" />
-                <h3 className="font-semibold">Proctoring Active</h3>
+
+            {/* ── Proctoring Status ── */}
+            <div style={{
+              padding: '16px 20px', borderRadius: 16,
+              background: 'rgba(239,68,68,0.05)',
+              border: '1px solid rgba(239,68,68,0.18)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <AlertTriangle size={16} color="#f87171" />
+                <span style={{ color: '#f87171', fontWeight: 700, fontSize: '0.875rem' }}>Proctoring Active</span>
               </div>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Warnings</span>
-                  <span className="text-danger font-bold">{warnings} / 3</span>
-                </div>
-                <div className="w-full h-1.5 bg-danger/10 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-danger rounded-full transition-all duration-300"
-                    style={{ width: `${(warnings / 3) * 100}%` }}
-                  />
-                </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: '0.8rem' }}>
+                <span style={{ color: '#64748b' }}>Warnings</span>
+                <span style={{ color: '#f87171', fontWeight: 700 }}>{warnings} / 3</span>
+              </div>
+              <div style={{
+                height: 5, borderRadius: 999,
+                background: 'rgba(239,68,68,0.12)',
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  height: '100%', borderRadius: 999,
+                  background: '#ef4444',
+                  width: `${(warnings / 3) * 100}%`,
+                  transition: 'width 0.4s ease',
+                }} />
               </div>
             </div>
-          </div>
-        </div>
 
-        <div className="pt-6 border-t border-white/5 flex items-center justify-between">
-          <button
-            onClick={handlePrev}
-            disabled={questionNumber === 1}
-            className="flex items-center gap-2 px-5 py-2.5 border border-primary/30 hover:border-primary disabled:opacity-30 disabled:pointer-events-none rounded-xl bg-white/5 hover:bg-primary/10 text-gray-300 hover:text-white text-sm font-semibold transition-all duration-300 focus:outline-none"
-          >
-            <ChevronLeft className="w-4 h-4" />
-            Previous
-          </button>
-          <button
-            onClick={handleNext}
-            disabled={isLastQuestion}
-            className="flex items-center gap-2 px-5 py-2.5 border border-primary/30 hover:border-primary disabled:opacity-30 disabled:pointer-events-none rounded-xl bg-white/5 hover:bg-primary/10 text-gray-300 hover:text-white text-sm font-semibold transition-all duration-300 focus:outline-none"
-          >
-            Next Question
-            <ChevronRight className="w-4 h-4" />
-          </button>
+          </div>
         </div>
       </div>
     </>
