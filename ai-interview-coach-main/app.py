@@ -207,7 +207,10 @@ Response Format:
             response_format={"type": "json_object"}
         )
         ai_response = chat_completion.choices[0].message.content
-        return jsonify(json.loads(ai_response))
+        print("RAW GROQ RESPONSE:", ai_response)
+        parsed_json = json.loads(ai_response)
+        print("PARSED QUESTION:", parsed_json.get("question"))
+        return jsonify(parsed_json)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -267,7 +270,10 @@ Response Format:
             response_format={"type": "json_object"}
         )
         ai_response = chat_completion.choices[0].message.content
-        return jsonify(json.loads(ai_response))
+        print("RAW GROQ RESPONSE:", ai_response)
+        parsed_json = json.loads(ai_response)
+        print("PARSED QUESTION:", parsed_json.get("question"))
+        return jsonify(parsed_json)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

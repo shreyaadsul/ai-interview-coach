@@ -235,6 +235,7 @@ function App() {
   };
 
   const handleStartInterview = (config, questions) => {
+    console.log("QUESTION BEFORE STORAGE:", questions[0]);
     setCurrentSessionConfig(config);
     setDynamicQuestions(questions);
     setQuestionNumber(1);
@@ -573,6 +574,9 @@ function App() {
               className="max-w-7xl mx-auto"
             >
               {dynamicQuestions && dynamicQuestions.length > 0 ? (
+                /* AIAvatar is exclusively rendered inside MockInterviewPage.
+                   Do NOT render AIAvatar on Dashboard, Resume Analysis, ATS Checker, 
+                   Interview History, or Settings pages. */
                 <MockInterviewPage 
                   questionNumber={questionNumber}
                   setQuestionNumber={setQuestionNumber}

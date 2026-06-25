@@ -1,17 +1,70 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  ChevronLeft,
-  ChevronRight,
-  Info,
-  Loader2,
-  AlertTriangle,
-  Mic,
-  Send,
-  SkipForward,
-  XCircle,
-} from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import AIAvatar from './AIAvatar';
+
+// ─── Text Cleanup Utility ─────────────────────────────────────────────────────
+const cleanText = (text) => {
+  if (!text) return "";
+  
+  let cleaned = text;
+
+  // Dictionary for speech recognition typos and corrections
+  const corrections = {
+    "artilicial": "artificial",
+    "innelligencc": "intelligence",
+    "innelligenct": "intelligent",
+    "specfcially": "specifically",
+    "roleeas": "roles",
+    "seemssthere": "seems there",
+    "wws": "was",
+    "misuuderstandiig": "misunderstanding",
+    "misuuderstanding": "misunderstanding",
+    "dont": "don't",
+    "cant": "can't",
+    "im": "I'm",
+    "ive": "I've",
+    "id": "I'd",
+    "youre": "you're",
+    "theyre": "they're",
+    "weve": "we've",
+    "its": "it's"
+  };
+
+  // Apply dictionary corrections (case insensitive)
+  Object.keys(corrections).forEach(word => {
+    const regex = new RegExp(`\\b${word}\\b`, 'gi');
+    cleaned = cleaned.replace(regex, corrections[word]);
+  });
+
+  // Collapse trailing STT anomalies safely
+  cleaned = cleaned.replace(/cc\b/gi, 'ce');
+  cleaned = cleaned.replace(/ii\b/gi, 'y');
+
+  // Collapse double letters that are never duplicated in correct English words
+  cleaned = cleaned.replace(/([hjqvxys])\1+/gi, '$1');
+
+  // Collapse triple letters (e.g. 'treee' -> 'tree')
+  cleaned = cleaned.replace(/([a-z])\1{2,}/gi, '$1$1');
+
+  // Normalize whitespace
+  cleaned = cleaned.replace(/\s+/g, ' ');
+
+  // Collapse duplicate punctuation
+  cleaned = cleaned.replace(/([.,!?])\1+/g, '$1');
+
+  // Spacing around punctuation
+  cleaned = cleaned.replace(/\s+([.,!?])/g, '$1');
+  cleaned = cleaned.replace(/([.,!?])([A-Za-z0-9])/g, '$1 $2');
+
+  // Sentence capitalization
+  cleaned = cleaned.replace(/(^\s*|[.!?]\s+)([a-z])/g, (match, separator, char) => separator + char.toUpperCase());
+
+  // Collapse consecutive duplicate words
+  cleaned = cleaned.replace(/\b(\w+)\s+\1\b/gi, '$1');
+
+  return cleaned.trim();
+};
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
 const loadScript = (src) =>
@@ -35,6 +88,52 @@ function getCurrentStage(qNum) {
   return 'Follow-Up';
 }
 
+// Module-level global variables removed in favor of React state-based storage
+
+// ─── AIAvatar Error Boundary ─────────────────────────────────────────────────
+class AIAvatarErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error('[AIAvatarErrorBoundary] Caught error:', error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'rgba(10, 12, 28, 0.95)',
+          color: '#fff',
+          borderRadius: '16px',
+          padding: '24px',
+          textAlign: 'center',
+          gap: '12px',
+          zIndex: 10
+        }}>
+          <span style={{ fontSize: '2.5rem' }}>⚠️</span>
+          <p style={{ fontWeight: 700, fontSize: '1.1rem' }}>
+            Unable to load AI Interviewer
+          </p>
+          <p style={{ fontSize: '0.8rem', color: '#94a3b8', maxWidth: '320px' }}>
+            {this.state.error?.message || 'WebGL context lost or Three.js runtime error'}
+          </p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function MockInterviewPage({
   onSubmit,
@@ -49,7 +148,10 @@ export default function MockInterviewPage({
   const [isGenerating, setIsGenerating] = useState(false);
   const totalQuestions = 20;
 
-  // Anti-cheat
+  // Elapsed Timer state
+  const [elapsedTime, setElapsedTime] = useState(0);
+
+  // Anti-cheat / Proctoring states
   const [warnings, setWarnings] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
   const [warningMessage, setWarningMessage] = useState('');
@@ -71,32 +173,343 @@ export default function MockInterviewPage({
   const animationRef = useRef(null);
   const streamRef = useRef(null);
 
-  // Derived
+  // Speech and Conversational States
+  const [interviewerState, setInterviewerState] = useState('Idle'); // 'Idle', 'Speaking', 'Listening', 'Analyzing'
+  const [typedText, setTypedText] = useState('');
+  const [candidateSpeechText, setCandidateSpeechText] = useState('');
+  const [isMicActive, setIsMicActive] = useState(false);
+  const [ttsStatus, setTtsStatus] = useState(null);
+
+  const typewriterTimer = useRef(null);
+  const recognitionRef = useRef(null);
+  const silenceTimeoutRef = useRef(null);
+  const selectedVoiceRef = useRef(null);
+  const activeQuestionRef = useRef(null);
+
+  // State-based voice selection
+  const [voice, setVoice] = useState(null);
+  const voiceReady = !!voice;
+
+  // Derived values
   const currentQuestion = questions[questionNumber - 1] || '';
-  const currentAnswer = answers[questionNumber] || '';
   const currentStage = getCurrentStage(questionNumber);
-  const progressPercentage = Math.round((questionNumber / totalQuestions) * 100);
   const isLastQuestion = questionNumber === totalQuestions;
 
-  // AI interviewer state machine
-  const [interviewerState, setInterviewerState] = useState('Idle');
+  // ─── Timer implementation ───────────────────────────────────────────────────
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setElapsedTime((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatTime = (totalSeconds) => {
+    const hrs = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+    const mins = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+    const secs = (totalSeconds % 60).toString().padStart(2, '0');
+    return `${hrs}:${mins}:${secs}`;
+  };
+
+  // Set up listeners to load and lock voices as early as possible (storing in component state)
+  useEffect(() => {
+    console.log("MockInterviewPage Mounted");
+
+    const selectAndLockVoice = () => {
+      // If voice is already stored in state, do not re-select
+      if (selectedVoiceRef.current) return;
+
+      const voices = window.speechSynthesis.getVoices();
+      if (!voices || voices.length === 0) return;
+
+      // Ordered selection priority with preferences for female English, en-US, en-IN
+      const voicePriority = [
+        'microsoft aria',
+        'microsoft zira',
+        'google uk english female',
+        'google us english female',
+        'female',
+        'samantha',
+        'heera',
+        'veena',
+        'hazel',
+        'susan',
+        'tessa',
+        'fiona',
+        'moira',
+        'karen',
+        'victoria'
+      ];
+
+      const englishVoices = voices.filter(v => v.lang.startsWith('en') || v.lang.includes('en-'));
+      let foundVoice = null;
+      
+      // Try to find preferred en-US or en-IN female voice first
+      const targetLangs = ['en-US', 'en-IN'];
+      for (const lang of targetLangs) {
+        const langVoices = englishVoices.filter(v => v.lang.toLowerCase().includes(lang.toLowerCase()));
+        for (const priority of voicePriority) {
+          foundVoice = langVoices.find(v => v.name.toLowerCase().includes(priority));
+          if (foundVoice) break;
+        }
+        if (foundVoice) break;
+      }
+
+      // Fallback 1: Any general English female voice matching the priorities list
+      if (!foundVoice) {
+        for (const priority of voicePriority) {
+          foundVoice = englishVoices.find(v => v.name.toLowerCase().includes(priority));
+          if (foundVoice) break;
+        }
+      }
+
+      // Fallback 2: Any voice containing "female"
+      if (!foundVoice) {
+        foundVoice = voices.find(v => v.name.toLowerCase().includes('female'));
+      }
+
+      // Fallback 3: First available English voice
+      if (!foundVoice && englishVoices.length > 0) {
+        foundVoice = englishVoices[0];
+      }
+
+      // Final Fallback: First voice
+      if (!foundVoice) {
+        foundVoice = voices[0];
+      }
+
+      if (foundVoice) {
+        selectedVoiceRef.current = foundVoice;
+        setVoice(foundVoice);
+        console.log("Selected Voice:", foundVoice.name);
+      }
+    };
+
+    selectAndLockVoice();
+
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.addEventListener('voiceschanged', selectAndLockVoice);
+    }
+    return () => {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.removeEventListener('voiceschanged', selectAndLockVoice);
+      }
+    };
+  }, []);
 
   useEffect(() => {
-    if (isGenerating) {
-      setInterviewerState('Idle');
+    console.log("Interview State:", interviewerState);
+  }, [interviewerState]);
+
+  // ─── Text-to-Speech (TTS) Engine ─────────────────────────────────────────────
+  const speakQuestion = (text, onEndCallback) => {
+    // Set active question text BEFORE calling cancel() to avoid synchronous race conditions
+    activeQuestionRef.current = text;
+    window.speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Use the exact same locked voice stored in state
+    const voiceToUse = voice;
+    if (voiceToUse) {
+      utterance.voice = voiceToUse;
+    } else {
+      console.warn('[TTS] No female voice loaded yet. Fallback check.');
+    }
+    
+    utterance.onstart = () => {
+      setTtsStatus(null);
+    };
+
+    utterance.onend = () => {
+      if (activeQuestionRef.current === text) {
+        if (onEndCallback) onEndCallback();
+      }
+    };
+    
+    utterance.onerror = (e) => {
+      if (e.error === 'interrupted' || activeQuestionRef.current !== text) {
+        return;
+      }
+      console.error('[TTS] Speech synthesis error:', e);
+      setTtsStatus("Voice generation unavailable.");
+      if (onEndCallback) onEndCallback();
+    };
+    
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // ─── Typewriter and Speech orchestration ──────────────────────────────────────
+  useEffect(() => {
+    if (!currentQuestion || !voiceReady) return;
+
+    console.log("QUESTION RECEIVED BY TYPEWRITER:", currentQuestion);
+
+    // Use the ORIGINAL generated question text directly (never clean/modify LLM output)
+    const originalQuestion = currentQuestion.trim();
+
+    setTypedText('');
+    setCandidateSpeechText('');
+    stopSpeechRecognition();
+    
+    if (typewriterTimer.current) clearInterval(typewriterTimer.current);
+
+    // Enter Speaking State
+    setInterviewerState('Speaking');
+
+    // Start typewriter effect - reveals characters sequentially
+    let idx = 0;
+    typewriterTimer.current = setInterval(() => {
+      setTypedText((prev) => prev + originalQuestion.charAt(idx));
+      idx++;
+      if (idx >= originalQuestion.length) {
+        clearInterval(typewriterTimer.current);
+      }
+    }, 30);
+
+    // Speak identical question, transition to listening after speaking is done
+    speakQuestion(originalQuestion, () => {
+      setInterviewerState('Listening');
+      startSpeechRecognition();
+    });
+
+    return () => {
+      if (typewriterTimer.current) clearInterval(typewriterTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentQuestion, voiceReady]);
+
+  // ─── Speech-to-Text (STT) Engine ─────────────────────────────────────────────
+  function startSpeechRecognition() {
+    stopSpeechRecognition();
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn('[STT] Speech recognition API not supported in this browser.');
       return;
     }
-    if (currentQuestion) {
-      setInterviewerState('Speaking');
-      const timer = setTimeout(() => setInterviewerState('Listening'), 6000);
-      return () => clearTimeout(timer);
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    let finalTranscript = '';
+
+    recognition.onstart = () => {
+      console.log('[STT] Candidate microphone listening active.');
+      setIsMicActive(true);
+    };
+
+    recognition.onresult = (event) => {
+      let interimTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript;
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+      
+      const currentFullText = finalTranscript + interimTranscript;
+      setCandidateSpeechText(currentFullText);
+
+      // Silence Detection: Auto submit after 4 seconds of silence
+      if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+      silenceTimeoutRef.current = setTimeout(() => {
+        console.log('[STT] Silence threshold reached. Automatically saving response.');
+        handleSpeechSubmit(currentFullText);
+      }, 4000);
+    };
+
+    recognition.onerror = (e) => {
+      console.error('[STT] Speech recognition error encountered:', e.error);
+    };
+
+    recognition.onend = () => {
+      console.log('[STT] Candidate microphone listening deactivated.');
+      setIsMicActive(false);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
+
+  function stopSpeechRecognition() {
+    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        // Already stopped
+      }
     }
-  }, [currentQuestion, isGenerating]);
+  };
+
+  async function handleSpeechSubmit(text) {
+    // Apply cleaning filter on candidate STT output before storing
+    const finalAnswer = cleanText(text) || 'No answer provided.';
+    const updatedAnswers = { ...answers, [questionNumber]: finalAnswer };
+    setAnswers(updatedAnswers);
+    
+    stopSpeechRecognition();
+    setInterviewerState('Analyzing');
+
+    if (isLastQuestion) {
+      handleForceSubmit();
+    } else {
+      await generateNextQuestion(updatedAnswers);
+    }
+  };
+
+  async function generateNextQuestion(updatedAnswers) {
+    setIsGenerating(true);
+    try {
+      const history = questions.map((q, i) => ({
+        question: q,
+        answer: updatedAnswers[i + 1] || 'No answer provided.',
+      }));
+      const res = await fetch('http://localhost:5000/api/next-question', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resume_data: resumeData,
+          history,
+          target_role: sessionConfig?.target_role,
+          interview_type: sessionConfig?.interview_type,
+          difficulty: sessionConfig?.difficulty,
+          stage: getCurrentStage(questionNumber + 1),
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        console.log("QUESTION BEFORE STORAGE:", data.question);
+        setQuestions([...questions, data.question || 'Can you elaborate on your previous answer?']);
+        setQuestionNumber(questionNumber + 1);
+      }
+    } catch (err) {
+      console.error('Failed to generate next question', err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      activeQuestionRef.current = null;
+      stopSpeechRecognition();
+      window.speechSynthesis.cancel();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─── Force submit ────────────────────────────────────────────────────────────
   const handleForceSubmit = useCallback(
     (isDisqualified = false) => {
       isSubmittingRef.current = true;
+      stopSpeechRecognition();
+      window.speechSynthesis.cancel();
       try { if (document.fullscreenElement) document.exitFullscreen(); } catch (_) {}
       const allAnswers = questions.map((_, i) => answers[i + 1] || 'No answer provided.');
       if (onSubmit) onSubmit(questions, allAnswers, isDisqualified === true);
@@ -262,66 +675,6 @@ export default function MockInterviewPage({
     predict();
   };
 
-  // ─── Handlers ────────────────────────────────────────────────────────────────
-  const handleTextareaChange = (e) => {
-    if (e.target.value.length <= 1000)
-      setAnswers({ ...answers, [questionNumber]: e.target.value });
-  };
-
-  const handlePrev = () => { if (questionNumber > 1) setQuestionNumber(questionNumber - 1); };
-  const handleNext = () => {
-    const a = answers[questionNumber];
-    if (!a?.trim()) { alert('Please answer the question before proceeding.'); return; }
-    if (questionNumber < questions.length) setQuestionNumber(questionNumber + 1);
-  };
-
-  const generateNextQuestion = async (updatedAnswers) => {
-    setIsGenerating(true);
-    try {
-      const history = questions.map((q, i) => ({ question: q, answer: updatedAnswers[i + 1] || 'No answer provided.' }));
-      const res = await fetch('http://localhost:5000/api/next-question', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          resume_data: resumeData,
-          history,
-          target_role: sessionConfig?.target_role,
-          interview_type: sessionConfig?.interview_type,
-          difficulty: sessionConfig?.difficulty,
-          stage: getCurrentStage(questionNumber + 1),
-        }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setQuestions([...questions, data.question || 'Can you elaborate on your previous answer?']);
-        setQuestionNumber(questionNumber + 1);
-      }
-    } catch (err) { console.error('Failed to generate next question', err); }
-    finally { setIsGenerating(false); }
-  };
-
-  const handleSaveAndNext = async () => {
-    const a = answers[questionNumber];
-    if (!a?.trim()) { alert('Please answer the question before proceeding.'); return; }
-    if (questionNumber < questions.length) { setQuestionNumber(questionNumber + 1); return; }
-    if (isLastQuestion) { handleForceSubmit(); return; }
-    await generateNextQuestion(answers);
-  };
-
-  const handleSkipQuestion = async () => {
-    const updated = { ...answers, [questionNumber]: 'skipped' };
-    setAnswers(updated);
-    if (questionNumber < questions.length) { setQuestionNumber(questionNumber + 1); return; }
-    if (isLastQuestion) {
-      isSubmittingRef.current = true;
-      try { if (document.fullscreenElement) document.exitFullscreen(); } catch (_) {}
-      const allAnswers = questions.map((_, i) => updated[i + 1] || 'No answer provided.');
-      if (onSubmit) onSubmit(questions, allAnswers, false);
-      return;
-    }
-    await generateNextQuestion(updated);
-  };
-
   const handleResumeAfterWarning = async () => {
     try { if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); } catch (_) {}
     setShowWarning(false);
@@ -387,428 +740,392 @@ export default function MockInterviewPage({
       )}
 
       {/* ── Page Root ── */}
-      <div className="select-none" style={{ minHeight: '100vh' }}>
+      <div className="select-none" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
 
         {/* ── Page Header ── */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 24,
+          padding: '16px 24px',
+          background: 'rgba(15, 23, 42, 0.4)',
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+          borderRadius: 16,
+          backdropFilter: 'blur(8px)'
+        }}>
           <div>
-            <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-              Mock Interview
+            <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+              <span style={{ color: '#8B5CF6' }}>✦</span> AI Interview Room
             </h1>
-            <p className="text-gray-400 text-sm mt-1">AI-proctored session — stay focused and answer each question clearly.</p>
           </div>
 
-          {/* Camera PIP */}
-          <div style={{ position: 'relative' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+            {/* Dynamic Question Counter */}
+            <div style={{ color: '#94a3b8', fontSize: '0.875rem', fontWeight: 600 }}>
+              Question <span style={{ color: '#fff' }}>{questionNumber}</span> of <span style={{ color: '#fff' }}>{totalQuestions}</span>
+            </div>
+
+            {/* Dynamic Timer */}
             <div style={{
-              width: 144, height: 108, borderRadius: 12, overflow: 'hidden',
-              border: `2px solid ${lookingAway ? '#ef4444' : 'rgba(124,58,237,0.5)'}`,
-              background: '#0f172a',
-              transition: 'border-color 0.3s',
+              color: '#8B5CF6',
+              fontSize: '0.875rem',
+              fontWeight: 700,
+              fontFamily: 'monospace',
+              background: 'rgba(139, 92, 246, 0.1)',
+              border: '1px solid rgba(139, 92, 246, 0.2)',
+              padding: '4px 12px',
+              borderRadius: 8
             }}>
+              ⏱ {formatTime(elapsedTime)}
+            </div>
+
+            {/* End Interview Button */}
+            <button
+              onClick={() => {
+                if (window.confirm("Are you sure you want to end the interview early? Your responses will be evaluated up to this point.")) {
+                  handleForceSubmit();
+                }
+              }}
+              style={{
+                background: 'transparent',
+                border: '1px solid #ef4444',
+                color: '#ef4444',
+                padding: '6px 16px',
+                borderRadius: 8,
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => { e.target.style.background = 'rgba(239, 68, 68, 0.1)'; }}
+              onMouseLeave={(e) => { e.target.style.background = 'transparent'; }}
+            >
+              End Interview
+            </button>
+          </div>
+        </div>
+
+        {/* ── Main 50/50 split room layout ── */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 24,
+          alignItems: 'stretch',
+          marginBottom: 24,
+          minHeight: 560
+        }}>
+          {/* LEFT SIDE: AI Interviewer Panel */}
+          <div style={{
+            borderRadius: 24,
+            overflow: 'hidden',
+            border: interviewerState === 'Speaking'
+              ? '2px solid rgba(139, 92, 246, 0.5)' // Purple glow when speaking
+              : interviewerState === 'Listening'
+              ? '2px solid rgba(34, 197, 94, 0.4)' // Green border when listening
+              : '2px solid rgba(59, 130, 246, 0.4)', // Blue border when analyzing
+            boxShadow: interviewerState === 'Speaking'
+              ? '0 0 25px rgba(139, 92, 246, 0.15)'
+              : interviewerState === 'Listening'
+              ? '0 0 25px rgba(34, 197, 94, 0.1)'
+              : '0 0 25px rgba(59, 130, 246, 0.1)',
+            background: 'linear-gradient(145deg, #070c1f, #0d1530)',
+            display: 'flex',
+            flexDirection: 'column',
+            position: 'relative',
+            transition: 'all 0.5s ease'
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 20px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+              background: 'rgba(255, 255, 255, 0.02)'
+            }}>
+              <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.9rem' }}>● AI Interviewer</span>
+              {/* Dynamic Status Badge */}
+              <span style={{
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                padding: '4px 10px',
+                borderRadius: 999,
+                background: interviewerState === 'Speaking'
+                  ? 'rgba(139, 92, 246, 0.15)'
+                  : interviewerState === 'Listening'
+                  ? 'rgba(34, 197, 94, 0.15)'
+                  : 'rgba(59, 130, 246, 0.15)',
+                color: interviewerState === 'Speaking'
+                  ? '#a855f7'
+                  : interviewerState === 'Listening'
+                  ? '#4ade80'
+                  : '#60a5fa',
+                border: interviewerState === 'Speaking'
+                  ? '1px solid rgba(139, 92, 246, 0.3)'
+                  : interviewerState === 'Listening'
+                  ? '1px solid rgba(34, 197, 94, 0.3)'
+                  : '1px solid rgba(59, 130, 246, 0.3)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6
+              }}>
+                <span style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: interviewerState === 'Speaking' ? '#a855f7' : interviewerState === 'Listening' ? '#22c55e' : '#3b82f6',
+                  boxShadow: `0 0 6px ${interviewerState === 'Speaking' ? '#a855f7' : interviewerState === 'Listening' ? '#22c55e' : '#3b82f6'}`,
+                  animation: 'pulse 1.5s infinite'
+                }} />
+                {interviewerState.toUpperCase()}
+              </span>
+            </div>
+
+            {/* 3D Model Canvas area */}
+            <div style={{ flex: 1, position: 'relative', minHeight: 480 }}>
+              <AIAvatarErrorBoundary>
+                <AIAvatar aiState={interviewerState} />
+              </AIAvatarErrorBoundary>
+              
+              {/* Speaking Waveform */}
+              {interviewerState === 'Speaking' && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: 20,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  background: 'rgba(15, 23, 42, 0.65)',
+                  padding: '8px 16px',
+                  borderRadius: 999,
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(139, 92, 246, 0.3)',
+                  zIndex: 2
+                }}>
+                  <div className="wave-bar" style={{ animationDelay: '0.1s' }} />
+                  <div className="wave-bar" style={{ animationDelay: '0.3s' }} />
+                  <div className="wave-bar" style={{ animationDelay: '0.5s' }} />
+                  <div className="wave-bar" style={{ animationDelay: '0.2s' }} />
+                  <div className="wave-bar" style={{ animationDelay: '0.4s' }} />
+                  
+                  <style>{`
+                    .wave-bar {
+                      width: 3px;
+                      height: 15px;
+                      background-color: #a855f7;
+                      border-radius: 999px;
+                      animation: wave 1.2s ease-in-out infinite alternate;
+                    }
+                    @keyframes wave {
+                      0% { height: 4px; }
+                      100% { height: 24px; }
+                    }
+                  `}</style>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT SIDE: Candidate Webcam Panel */}
+          <div style={{
+            borderRadius: 24,
+            overflow: 'hidden',
+            border: isMicActive
+              ? '2px solid rgba(34, 197, 94, 0.5)' // Green glow when mic active
+              : '2px solid rgba(255, 255, 255, 0.05)',
+            boxShadow: isMicActive
+              ? '0 0 25px rgba(34, 197, 94, 0.15)'
+              : 'none',
+            background: 'linear-gradient(145deg, #070c1f, #0d1530)',
+            display: 'flex',
+            flexDirection: 'column',
+            position: 'relative',
+            transition: 'all 0.5s ease'
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 20px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+              background: 'rgba(255, 255, 255, 0.02)'
+            }}>
+              <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.9rem' }}>● Your Camera</span>
+              <span style={{
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                padding: '4px 10px',
+                borderRadius: 999,
+                background: isMicActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                color: isMicActive ? '#4ade80' : '#64748b',
+                border: isMicActive ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6
+              }}>
+                <span style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: isMicActive ? '#22c55e' : '#64748b',
+                  boxShadow: isMicActive ? '0 0 6px #22c55e' : 'none'
+                }} />
+                {isMicActive ? 'LISTENING' : 'MUTED'}
+              </span>
+            </div>
+
+            {/* Webcam Video area */}
+            <div style={{ flex: 1, position: 'relative', minHeight: 480, background: '#020617' }}>
               {isModelLoading && (
                 <div style={{
                   position: 'absolute', inset: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: '#0f172a',
+                  background: '#020617', zIndex: 1
                 }}>
-                  <Loader2 size={20} color="#7c3aed" className="animate-spin" />
+                  <Loader2 size={36} color="#8B5CF6" className="animate-spin" />
                 </div>
               )}
+              
               <video
                 ref={videoRef}
                 onLoadedData={handleVideoLoad}
                 autoPlay playsInline muted
-                style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
-              />
-            </div>
-            <div style={{
-              position: 'absolute', bottom: -10, left: '50%', transform: 'translateX(-50%)',
-              padding: '2px 10px', borderRadius: 999,
-              background: lookingAway ? '#ef4444' : '#7c3aed',
-              fontSize: 9, fontWeight: 700, color: '#fff', whiteSpace: 'nowrap',
-              transition: 'background 0.3s',
-            }}>
-              {lookingAway ? '⚠ LOOKING AWAY' : '● AI TRACKING'}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Main 65/35 Layout ── */}
-        <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
-
-          {/* ════════════════════════════════════════
-              LEFT — 65% — Interview Content
-          ════════════════════════════════════════ */}
-          <div style={{ flex: '0 0 65%', display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-            {/* Progress Card */}
-            <div className="glass border border-white/10 rounded-2xl p-6 space-y-4">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <span style={{ color: '#e2e8f0', fontWeight: 600, fontSize: '0.875rem' }}>Interview Progress</span>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <span style={{
-                    fontSize: '0.7rem', fontWeight: 600,
-                    background: 'rgba(124,58,237,0.1)', color: '#a78bfa',
-                    border: '1px solid rgba(124,58,237,0.25)', borderRadius: 6, padding: '3px 10px',
-                  }}>
-                    ~15–20 mins
-                  </span>
-                  <span style={{
-                    fontSize: '0.7rem', fontWeight: 600,
-                    background: 'rgba(255,255,255,0.05)', color: '#94a3b8',
-                    border: '1px solid rgba(255,255,255,0.08)', borderRadius: 6, padding: '3px 10px',
-                  }}>
-                    Q {questionNumber} / {totalQuestions}
-                  </span>
-                </div>
-              </div>
-
-              {/* Progress Bar */}
-              <div style={{
-                width: '100%', height: 8, borderRadius: 999,
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                overflow: 'hidden',
-              }}>
-                <div style={{
+                style={{
+                  width: '100%',
                   height: '100%',
-                  width: `${progressPercentage}%`,
-                  borderRadius: 999,
-                  background: 'linear-gradient(to right, #7c3aed, #6366f1)',
-                  transition: 'width 0.5s ease-out',
-                }} />
-              </div>
+                  objectFit: 'cover',
+                  transform: 'scaleX(-1)'
+                }}
+              />
 
-              {/* Stage Pills */}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {STAGES.map((stage, idx) => {
-                  const stageIdx = STAGES.indexOf(currentStage);
-                  const isActive = stage === currentStage;
-                  const isPast = idx < stageIdx;
-                  return (
-                    <span
-                      key={stage}
-                      style={{
-                        padding: '5px 12px', borderRadius: 8,
-                        fontSize: '0.7rem', fontWeight: 700,
-                        whiteSpace: 'nowrap',
-                        border: `1px solid ${isActive ? 'rgba(124,58,237,0.35)' : isPast ? 'rgba(34,197,94,0.25)' : 'rgba(255,255,255,0.06)'}`,
-                        background: isActive ? 'rgba(124,58,237,0.18)' : isPast ? 'rgba(34,197,94,0.08)' : 'rgba(255,255,255,0.03)',
-                        color: isActive ? '#a78bfa' : isPast ? '#4ade80' : '#64748b',
-                      }}
-                    >
-                      {isPast ? '✓ ' : ''}{stage}{isActive ? ' ◉' : ''}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Question Card */}
-            <div className="glass border border-white/10 rounded-2xl p-6" style={{ display: 'flex', gap: 14 }}>
-              <div style={{
-                width: 10, height: 10, borderRadius: '50%',
-                background: '#22c55e', flexShrink: 0, marginTop: 6,
-                boxShadow: '0 0 10px #22c55e',
-                animation: 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite',
-              }} />
-              <div>
-                <span style={{
-                  fontSize: '0.65rem', fontWeight: 700,
-                  color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.08em',
+              {/* Proctoring Warning overlays inside Webcam Panel */}
+              {lookingAway && (
+                <div style={{
+                  position: 'absolute',
+                  top: 16,
+                  left: 16,
+                  padding: '6px 12px',
+                  background: 'rgba(239, 68, 68, 0.9)',
+                  color: '#fff',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  borderRadius: 8,
+                  boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
+                  zIndex: 2,
+                  animation: 'pulse 1s infinite'
                 }}>
-                  Question {questionNumber} · {currentStage}
-                </span>
-                <p style={{ color: '#fff', fontWeight: 500, fontSize: '1.1rem', marginTop: 6, lineHeight: 1.65 }}>
-                  {currentQuestion || 'Loading question…'}
-                </p>
-              </div>
-            </div>
-
-            {/* Answer Card */}
-            <div className="glass border border-white/10 rounded-2xl p-6 space-y-3">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label htmlFor="answer-input" style={{ fontSize: '0.875rem', fontWeight: 600, color: '#e2e8f0' }}>
-                  Your Answer
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.7rem', color: '#64748b' }}>
-                  <Mic size={12} />
-                  <span>Type your response below</span>
+                  ⚠ AI WARNING: LOOKING AWAY
                 </div>
-              </div>
-              <div style={{ position: 'relative' }}>
-                <textarea
-                  id="answer-input"
-                  style={{
-                    width: '100%', minHeight: 200,
-                    padding: '14px 16px',
-                    background: 'rgba(15,23,42,0.5)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    borderRadius: 12,
-                    color: '#fff', fontSize: '0.875rem',
-                    resize: 'vertical', outline: 'none',
-                    fontFamily: 'inherit', lineHeight: 1.6,
-                    transition: 'border-color 0.2s',
-                    boxSizing: 'border-box',
-                  }}
-                  onFocus={(e) => { e.target.style.borderColor = 'rgba(124,58,237,0.5)'; }}
-                  onBlur={(e) => { e.target.style.borderColor = 'rgba(255,255,255,0.08)'; }}
-                  placeholder="Type your answer here... Be specific, use examples, and show your thought process."
-                  value={currentAnswer}
-                  onChange={handleTextareaChange}
-                  onCopy={(e) => e.preventDefault()}
-                  onPaste={(e) => e.preventDefault()}
-                  onCut={(e) => e.preventDefault()}
-                />
+              )}
+
+              {/* Subtitles / Real-time speech transcription preview for candidate */}
+              {isMicActive && candidateSpeechText && (
                 <div style={{
-                  position: 'absolute', bottom: 10, right: 12,
-                  fontSize: '0.7rem', fontWeight: 600,
-                  color: currentAnswer.length > 900 ? '#f59e0b' : '#475569',
-                  background: 'rgba(15,23,42,0.9)', padding: '2px 8px', borderRadius: 6,
+                  position: 'absolute',
+                  bottom: 24,
+                  left: '5%',
+                  right: '5%',
+                  padding: '10px 16px',
+                  background: 'rgba(15, 23, 42, 0.85)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: 12,
+                  color: '#e2e8f0',
+                  fontSize: '0.85rem',
+                  textAlign: 'center',
+                  backdropFilter: 'blur(8px)',
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                  zIndex: 2
                 }}>
-                  {currentAnswer.length}/1000
+                  <span style={{ color: '#a855f7', fontWeight: 600 }}>Spoken:</span> "{candidateSpeechText}"
                 </div>
-              </div>
+              )}
             </div>
-
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                onClick={handleSaveAndNext}
-                disabled={isGenerating}
-                style={{
-                  flex: 1, padding: '13px 0',
-                  borderRadius: 12, border: 'none',
-                  background: isGenerating ? 'rgba(124,58,237,0.4)' : 'linear-gradient(135deg, #7c3aed, #6366f1)',
-                  color: '#fff', fontWeight: 700, fontSize: '0.875rem',
-                  cursor: isGenerating ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  boxShadow: isGenerating ? 'none' : '0 4px 20px rgba(124,58,237,0.3)',
-                  transition: 'all 0.2s',
-                  opacity: isGenerating ? 0.6 : 1,
-                }}
-              >
-                {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <Send size={15} />}
-                {isGenerating
-                  ? 'Analyzing & Generating...'
-                  : isLastQuestion
-                  ? 'Submit Interview'
-                  : 'Save & Next Question'}
-              </button>
-
-              <button
-                onClick={handleSkipQuestion}
-                disabled={isGenerating}
-                style={{
-                  padding: '13px 20px', borderRadius: 12,
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  background: 'rgba(255,255,255,0.04)',
-                  color: '#94a3b8', fontWeight: 600, fontSize: '0.875rem',
-                  cursor: isGenerating ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 7,
-                  transition: 'all 0.2s',
-                }}
-              >
-                <SkipForward size={15} />
-                Skip
-              </button>
-
-              <button
-                onClick={handleForceSubmit}
-                style={{
-                  padding: '13px 18px', borderRadius: 12,
-                  border: '1px solid rgba(239,68,68,0.25)',
-                  background: 'rgba(239,68,68,0.08)',
-                  color: '#f87171', fontWeight: 600, fontSize: '0.875rem',
-                  cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 7,
-                  transition: 'all 0.2s',
-                }}
-              >
-                <XCircle size={15} />
-                End Early
-              </button>
-            </div>
-
-            {/* Nav Row */}
-            <div style={{
-              display: 'flex', justifyContent: 'space-between',
-              paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.05)',
-            }}>
-              <button
-                onClick={handlePrev}
-                disabled={questionNumber === 1}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '10px 18px', borderRadius: 10,
-                  border: '1px solid rgba(124,58,237,0.3)',
-                  background: 'rgba(255,255,255,0.03)',
-                  color: questionNumber === 1 ? '#334155' : '#94a3b8',
-                  fontWeight: 600, fontSize: '0.8rem', cursor: questionNumber === 1 ? 'not-allowed' : 'pointer',
-                  opacity: questionNumber === 1 ? 0.4 : 1,
-                }}
-              >
-                <ChevronLeft size={15} /> Previous
-              </button>
-              <button
-                onClick={handleNext}
-                disabled={isLastQuestion}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '10px 18px', borderRadius: 10,
-                  border: '1px solid rgba(124,58,237,0.3)',
-                  background: 'rgba(255,255,255,0.03)',
-                  color: isLastQuestion ? '#334155' : '#94a3b8',
-                  fontWeight: 600, fontSize: '0.8rem', cursor: isLastQuestion ? 'not-allowed' : 'pointer',
-                  opacity: isLastQuestion ? 0.4 : 1,
-                }}
-              >
-                Next Question <ChevronRight size={15} />
-              </button>
-            </div>
-          </div>
-
-          {/* ════════════════════════════════════════
-              RIGHT — 35% — AI Interviewer Panel
-          ════════════════════════════════════════ */}
-          <div style={{ flex: '0 0 35%', display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-            {/* ── AI Interviewer 3D Viewport ── */}
-            <div style={{
-              borderRadius: 20,
-              overflow: 'hidden',
-              border: '1px solid rgba(124,58,237,0.25)',
-              background: 'linear-gradient(145deg, #070c1f, #0d1530)',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
-              position: 'relative',
-            }}>
-              {/* Card Header */}
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '14px 18px',
-                borderBottom: '1px solid rgba(255,255,255,0.06)',
-                background: 'rgba(255,255,255,0.03)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {/* Animated interviewer avatar icon */}
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 14,
-                    boxShadow: '0 0 12px rgba(124,58,237,0.4)',
-                  }}>
-                    🤵
-                  </div>
-                  <div>
-                    <p style={{ color: '#e2e8f0', fontWeight: 700, fontSize: '0.875rem', lineHeight: 1 }}>
-                      AI Interviewer
-                    </p>
-                    <p style={{ color: '#64748b', fontSize: '0.65rem', marginTop: 2 }}>
-                      {sessionConfig?.target_role || 'HR Professional'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* State badge */}
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '4px 12px', borderRadius: 999,
-                  background: interviewerState === 'Speaking'
-                    ? 'rgba(34,197,94,0.12)'
-                    : interviewerState === 'Listening'
-                    ? 'rgba(168,85,247,0.12)'
-                    : 'rgba(59,130,246,0.12)',
-                  border: `1px solid ${
-                    interviewerState === 'Speaking'
-                      ? 'rgba(34,197,94,0.3)'
-                      : interviewerState === 'Listening'
-                      ? 'rgba(168,85,247,0.3)'
-                      : 'rgba(59,130,246,0.3)'
-                  }`,
-                }}>
-                  <span style={{
-                    width: 6, height: 6, borderRadius: '50%',
-                    background: interviewerState === 'Speaking' ? '#22c55e' : interviewerState === 'Listening' ? '#a855f7' : '#3b82f6',
-                    boxShadow: `0 0 6px ${interviewerState === 'Speaking' ? '#22c55e' : interviewerState === 'Listening' ? '#a855f7' : '#3b82f6'}`,
-                    display: 'inline-block',
-                  }} />
-                  <span style={{
-                    fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
-                    color: interviewerState === 'Speaking' ? '#4ade80' : interviewerState === 'Listening' ? '#c084fc' : '#60a5fa',
-                  }}>
-                    {interviewerState}
-                  </span>
-                </div>
-              </div>
-
-              {/* 3D Canvas — tall viewport */}
-              <div style={{ height: 480, position: 'relative' }}>
-                {/* Subtle gradient overlay at bottom to blend into next card */}
-                <div style={{
-                  position: 'absolute', bottom: 0, left: 0, right: 0, height: 60,
-                  background: 'linear-gradient(to bottom, transparent, rgba(7,12,31,0.7))',
-                  zIndex: 2, pointerEvents: 'none',
-                }} />
-                <AIAvatar aiState={interviewerState} />
-              </div>
-            </div>
-
-            {/* ── Interview Tips ── */}
-            <div className="glass border border-white/10 rounded-2xl p-5 space-y-3">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Info size={16} color="#7c3aed" />
-                <span style={{ fontWeight: 700, color: '#fff', fontSize: '0.875rem' }}>Interview Tips</span>
-              </div>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {[
-                  '20 questions across 6 structured stages.',
-                  'Do not switch tabs, exit fullscreen, or look away.',
-                  'Copy & paste is strictly disabled.',
-                  'Use STAR method: Situation → Task → Action → Result.',
-                ].map((tip, i) => (
-                  <li key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <span style={{
-                      width: 6, height: 6, borderRadius: '50%', background: '#7c3aed',
-                      flexShrink: 0, marginTop: 6,
-                    }} />
-                    <span style={{ color: '#94a3b8', fontSize: '0.8rem', lineHeight: 1.5 }}>{tip}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* ── Proctoring Status ── */}
-            <div style={{
-              padding: '16px 20px', borderRadius: 16,
-              background: 'rgba(239,68,68,0.05)',
-              border: '1px solid rgba(239,68,68,0.18)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <AlertTriangle size={16} color="#f87171" />
-                <span style={{ color: '#f87171', fontWeight: 700, fontSize: '0.875rem' }}>Proctoring Active</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: '0.8rem' }}>
-                <span style={{ color: '#64748b' }}>Warnings</span>
-                <span style={{ color: '#f87171', fontWeight: 700 }}>{warnings} / 3</span>
-              </div>
-              <div style={{
-                height: 5, borderRadius: 999,
-                background: 'rgba(239,68,68,0.12)',
-                overflow: 'hidden',
-              }}>
-                <div style={{
-                  height: '100%', borderRadius: 999,
-                  background: '#ef4444',
-                  width: `${(warnings / 3) * 100}%`,
-                  transition: 'width 0.4s ease',
-                }} />
-              </div>
-            </div>
-
           </div>
         </div>
+
+        {/* ── Transcript Panel ── */}
+        <div className="glass" style={{
+          border: '1px solid rgba(255, 255, 255, 0.05)',
+          borderRadius: 24,
+          padding: '24px 32px',
+          background: 'rgba(10, 14, 35, 0.75)',
+          backdropFilter: 'blur(16px)',
+          boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+          marginBottom: 24
+        }}>
+          {/* Header */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+            paddingBottom: 16,
+            marginBottom: 16
+          }}>
+            <span style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem', letterSpacing: '-0.01em' }}>
+              AI Interviewer Transcript
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {ttsStatus && (
+                <span style={{ color: '#f87171', fontSize: '0.8rem', fontWeight: 600 }}>
+                  ⚠️ {ttsStatus}
+                </span>
+              )}
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                color: '#22c55e',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                letterSpacing: '0.05em'
+              }}>
+                <span style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: '#22c55e',
+                  boxShadow: '0 0 8px #22c55e'
+                }} />
+                LIVE
+              </span>
+            </div>
+          </div>
+
+          {/* Transcript Content Area */}
+          <div style={{
+            minHeight: 80,
+            fontFamily: 'Courier New, Courier, monospace',
+            color: '#fff',
+            fontSize: '1rem',
+            lineHeight: 1.6,
+            whiteSpace: 'pre-wrap'
+          }}>
+            <span style={{ color: '#a855f7', fontWeight: 700 }}>AI Interviewer: </span>
+            {typedText}
+            <span style={{
+              display: 'inline-block',
+              width: 8,
+              height: 16,
+              background: '#a855f7',
+              marginLeft: 4,
+              animation: 'blink 1s step-end infinite'
+            }} />
+            <style>{`
+              @keyframes blink {
+                from, to { background-color: transparent }
+                50% { background-color: #a855f7 }
+              }
+            `}</style>
+          </div>
+        </div>
+
       </div>
     </>
   );

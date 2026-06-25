@@ -1,5 +1,5 @@
-import React, { useRef, useEffect, useState, Suspense } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import React, { useRef, useEffect, useState, useCallback, Suspense } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import {
   useGLTF,
   useAnimations,
@@ -75,10 +75,10 @@ class CanvasErrorBoundary extends React.Component {
 }
 
 // ─── 3D Avatar ────────────────────────────────────────────────────────────────
-function InterviewerAvatar({ url, isSpeaking, isListening }) {
+function InterviewerAvatar({ url, isSpeaking, isListening, onModelLoad, modelHeight, aiState }) {
   const group = useRef();
 
-  // Load GLB — throws on failure (caught by CanvasErrorBoundary)
+  // Load GLB (throws on failure, caught by CanvasErrorBoundary)
   const gltf = useGLTF(url);
   const { scene, animations } = gltf;
   const { actions } = useAnimations(animations, group);
@@ -95,8 +95,9 @@ function InterviewerAvatar({ url, isSpeaking, isListening }) {
   // Morph-target mesh refs (lip sync / blinking)
   const morphMeshes = useRef([]);
 
-  // Auto-scale / auto-center state
-  const [modelConfig, setModelConfig] = useState({ scale: 1, offsetY: 0, offsetX: 0, offsetZ: 0 });
+  // Auto-scale / auto-center offsets
+  const [offsets, setOffsets] = useState({ x: 0, y: 0, z: 0 });
+  const [boundsCalculated, setBoundsCalculated] = useState(false);
 
   // Blink timer
   const blinkTimer = useRef(0);
@@ -105,10 +106,9 @@ function InterviewerAvatar({ url, isSpeaking, isListening }) {
   const nextBlink = useRef(4);
 
   useEffect(() => {
-    if (!scene) return;
+    if (!scene || boundsCalculated) return;
 
-    // ── Log model path
-    console.log('[AIAvatar] Model path:', url);
+    console.log('[AIAvatar] Model loaded successfully:', url);
 
     let meshCount = 0;
     let materialCount = 0;
@@ -140,7 +140,7 @@ function InterviewerAvatar({ url, isSpeaking, isListening }) {
           morphMeshes.current.push(child);
         }
 
-        // Hide collider geometry
+        // Hide colliders
         const nl = child.name.toLowerCase();
         if (
           nl.includes('collider') ||
@@ -155,71 +155,102 @@ function InterviewerAvatar({ url, isSpeaking, isListening }) {
       }
     });
 
-    // ── Bounding box — auto scale & center
-    const box = new THREE.Box3().setFromObject(scene);
+    // ── Calculate Visual Bounding Box (ignoring helpers/bones)
+    const box = new THREE.Box3();
+    let hasMesh = false;
+    scene.traverse((child) => {
+      if (child.isMesh) {
+        child.updateMatrixWorld(true);
+        const meshBox = new THREE.Box3().setFromObject(child);
+        if (!meshBox.isEmpty()) {
+          if (!hasMesh) {
+            box.copy(meshBox);
+            hasMesh = true;
+          } else {
+            box.union(meshBox);
+          }
+        }
+      }
+    });
+
+    if (!hasMesh) {
+      box.setFromObject(scene);
+    }
+
     const size = new THREE.Vector3();
     box.getSize(size);
     const center = new THREE.Vector3();
     box.getCenter(center);
 
+    const height = size.y;
+    const width = size.x;
+
+    // Log details as requested
     console.log('[AIAvatar] ── Model Dimensions ──');
-    console.log(`  Width  (X): ${size.x.toFixed(4)}`);
-    console.log(`  Height (Y): ${size.y.toFixed(4)}`);
-    console.log(`  Depth  (Z): ${size.z.toFixed(4)}`);
-    console.log(`  Center   : X=${center.x.toFixed(3)} Y=${center.y.toFixed(3)} Z=${center.z.toFixed(3)}`);
+    console.log(`  Width  (X): ${width.toFixed(4)}`);
+    console.log(`  Height (Y): ${height.toFixed(4)}`);
+    console.log(`  Center    : X=${center.x.toFixed(3)} Y=${center.y.toFixed(3)} Z=${center.z.toFixed(3)}`);
     console.log(`  Mesh count     : ${meshCount}`);
     console.log(`  Material count : ${materialCount}`);
     console.log(`  Bone count     : ${boneCount}`);
 
-    // Scale so model height = 1.8 units (shows full upper body)
-    const targetHeight = 1.8;
-    let scale = targetHeight / (size.y || 1);
-    if (scale > 300 || scale < 0.0001) scale = 1;
+    // Offsets to center the model's width/depth and align its bottom bounding edge at Y=0
+    const offsetX = -center.x;
+    const offsetY = -box.min.y;
+    const offsetZ = -center.z;
 
-    // Offset to place model bottom at Y=0 and centre on X/Z
-    const offsetY = -box.min.y * scale;
-    const offsetX = -center.x * scale;
-    const offsetZ = -center.z * scale;
+    setOffsets({ x: offsetX, y: offsetY, z: offsetZ });
 
-    console.log(`[AIAvatar] Auto scale: ${scale.toFixed(4)}`);
-    console.log(`[AIAvatar] Offset: X=${offsetX.toFixed(3)} Y=${offsetY.toFixed(3)} Z=${offsetZ.toFixed(3)}`);
-    console.log('[AIAvatar] Bones found:', Object.entries(bones.current).filter(([,v]) => v).map(([k]) => k));
+    // Inform the parent component to handle global environment layout scaling
+    if (onModelLoad) {
+      onModelLoad({
+        height,
+        width,
+        center,
+        offsetX,
+        offsetY,
+        offsetZ,
+        loaded: true
+      });
+    }
 
-    setModelConfig({ scale, offsetY, offsetX, offsetZ });
-  }, [scene, url]);
+    setBoundsCalculated(true);
+  }, [scene, url, onModelLoad, boundsCalculated]);
 
-  // Stop any GLB walking/locomotion animations — only keep built-in idle if present
+  // Stop walking/running animations
   useEffect(() => {
     if (!actions) return;
-    const walkKeywords = ['walk', 'run', 'locomotion', 'move', 'jog', 'strafe'];
+    const walkKeywords = ['walk', 'run', 'locomotion', 'move', 'jog', 'strafe', 'tpose', 't-pose', 'entry', 'exit'];
     Object.entries(actions).forEach(([name, action]) => {
       const nl = name.toLowerCase();
       if (walkKeywords.some((k) => nl.includes(k))) {
         action.stop();
-        console.log('[AIAvatar] Stopped walk animation:', name);
+        console.log('[AIAvatar] Stopped walk/locomotion animation:', name);
       }
     });
 
-    // Play the first non-walk animation as base idle if it exists
+    // Play default non-walk idle
     const idleKey = Object.keys(actions).find((k) => {
       const nl = k.toLowerCase();
       return !walkKeywords.some((w) => nl.includes(w));
     });
     if (idleKey) {
+      console.log('[AIAvatar] Playing base idle clip:', idleKey);
       actions[idleKey].reset().fadeIn(0.5).play();
     }
   }, [actions]);
 
-  // ─── useFrame — procedural animations ───────────────────────────────────────
+  // ─── useFrame procedural animations ────────────────────────────────────────
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
+    const currentHeight = modelHeight || 1.8;
 
-    // Breathing — gentle Y oscillation
+    // Breathing — gentle Y oscillation based on model scale height
     if (group.current) {
-      group.current.position.y = -1.0 + Math.sin(t * 1.4) * 0.006;
+      group.current.position.y = Math.sin(t * 1.4) * 0.006 * currentHeight;
     }
 
-    // Spine lean (listening = slightly forward)
+    // Spine lean (leaning forward when listening)
     if (bones.current.spine) {
       const target = isListening ? 0.07 : Math.sin(t * 1.4) * 0.008;
       bones.current.spine.rotation.x = THREE.MathUtils.lerp(
@@ -250,10 +281,17 @@ function InterviewerAvatar({ url, isSpeaking, isListening }) {
           bones.current.head.rotation.x, targetX, 0.1
         );
         bones.current.head.rotation.y = Math.sin(t * 0.3) * 0.018;
+        bones.current.head.rotation.z = 0;
+      } else if (aiState === 'Analyzing') {
+        // Thinking / analyzing: head tilted slightly and look slightly down-sideways
+        bones.current.head.rotation.x = Math.sin(t * 0.8) * 0.01 + 0.04;
+        bones.current.head.rotation.y = Math.cos(t * 0.5) * 0.015 - 0.02;
+        bones.current.head.rotation.z = Math.sin(t * 0.5) * 0.01;
       } else {
-        // Idle — very subtle drift
+        // Idle
         bones.current.head.rotation.x = Math.sin(t * 1.1) * 0.013;
         bones.current.head.rotation.y = Math.cos(t * 0.55) * 0.018;
+        bones.current.head.rotation.z = 0;
       }
     }
 
@@ -294,7 +332,7 @@ function InterviewerAvatar({ url, isSpeaking, isListening }) {
       }
     }
 
-    // Lip sync (jaw morph)
+    // Lip sync
     if (morphMeshes.current.length > 0) {
       morphMeshes.current.forEach((mesh) => {
         Object.keys(mesh.morphTargetDictionary).forEach((key) => {
@@ -321,89 +359,90 @@ function InterviewerAvatar({ url, isSpeaking, isListening }) {
 
   return (
     <group ref={group} dispose={null}>
-      <group
-        scale={modelConfig.scale}
-        position={[modelConfig.offsetX, modelConfig.offsetY, modelConfig.offsetZ]}
-      >
+      <group position={[offsets.x, offsets.y, offsets.z]}>
         <primitive object={scene} />
       </group>
     </group>
   );
 }
 
-// ─── Professional Desk ────────────────────────────────────────────────────────
-// Desk top at ~Y = 0.55 (lowered 40% from original ~0.95)
-// Desk moved forward in Z so it frames avatar nicely
-function InterviewDesk() {
+// ─── Proportional Office Desk ──────────────────────────────────────────────────
+function InterviewDesk({ scaleFactor }) {
   return (
-    <group position={[0, -1, 0.95]}>
-      {/* Desk surface */}
+    <group position={[0, 0, 0.53 * 1.8 * scaleFactor]} scale={scaleFactor}>
+      {/* Desk top slab */}
       <mesh position={[0, 0.55, 0]} castShadow receiveShadow>
         <boxGeometry args={[4.5, 0.035, 1.3]} />
-        <meshStandardMaterial color="#1a2540" roughness={0.2} metalness={0.5} />
+        <meshStandardMaterial color="#1a202c" roughness={0.15} metalness={0.4} />
       </mesh>
 
-      {/* Desk front modesty panel */}
+      {/* modesty front panel */}
       <mesh position={[0, 0.27, 0.62]} castShadow receiveShadow>
         <boxGeometry args={[4.5, 0.56, 0.035]} />
-        <meshStandardMaterial color="#0d1425" roughness={0.7} />
+        <meshStandardMaterial color="#0b0f19" roughness={0.7} />
       </mesh>
 
       {/* Left leg */}
       <mesh position={[-2.1, 0.28, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.07, 0.56, 0.9]} />
-        <meshStandardMaterial color="#0d1425" roughness={0.6} />
+        <meshStandardMaterial color="#0b0f19" roughness={0.5} />
       </mesh>
 
       {/* Right leg */}
       <mesh position={[2.1, 0.28, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.07, 0.56, 0.9]} />
-        <meshStandardMaterial color="#0d1425" roughness={0.6} />
+        <meshStandardMaterial color="#0b0f19" roughness={0.5} />
       </mesh>
 
-      {/* Desk accent strip — subtle purple glow */}
+      {/* Purple accent strip */}
       <mesh position={[0, 0.572, 0.64]}>
         <boxGeometry args={[4.5, 0.008, 0.008]} />
-        <meshBasicMaterial color="#7c3aed" />
+        <meshBasicMaterial color="#a855f7" />
       </mesh>
 
-      {/* Laptop — screen faces interviewer, back faces candidate */}
-      {/* Rotated 180° on Y so screen is away from camera */}
-      <group position={[0.3, 0.585, -0.18]} rotation={[0, Math.PI, 0]}>
+      {/* Laptop — scaled down 35% (width 28cm vs 42cm), rotated 180 on Y so back faces candidate */}
+      <group position={[0.25, 0.568, -0.05]} rotation={[0, Math.PI, 0]}>
         {/* Base */}
         <mesh castShadow receiveShadow>
-          <boxGeometry args={[0.42, 0.012, 0.30]} />
+          <boxGeometry args={[0.28, 0.008, 0.20]} />
           <meshStandardMaterial color="#2d3748" roughness={0.3} metalness={0.75} />
         </mesh>
-        {/* Keyboard deck bevel */}
-        <mesh position={[0, 0.007, 0]}>
-          <boxGeometry args={[0.38, 0.004, 0.26]} />
-          <meshStandardMaterial color="#1a202c" roughness={0.5} />
+        
+        {/* Keyboard Area */}
+        <mesh position={[0, 0.005, 0.02]}>
+          <boxGeometry args={[0.25, 0.002, 0.12]} />
+          <meshStandardMaterial color="#1a202c" roughness={0.6} />
         </mesh>
-        {/* Screen (facing interviewer) */}
-        <mesh position={[0, 0.115, -0.14]} rotation={[-0.28, 0, 0]} castShadow receiveShadow>
-          <boxGeometry args={[0.42, 0.26, 0.012]} />
-          <meshStandardMaterial color="#0f1523" roughness={0.25} metalness={0.8} />
-        </mesh>
-        {/* Screen glow — faint blue emissive on interviewer side */}
-        <mesh position={[0, 0.115, -0.134]} rotation={[-0.28, 0, 0]}>
-          <boxGeometry args={[0.38, 0.22, 0.001]} />
-          <meshBasicMaterial color="#1e3a5f" />
-        </mesh>
-        {/* Apple-style logo on lid back (candidate side) */}
-        <mesh position={[0, 0.115, -0.147]} rotation={[-0.28, 0, 0]}>
-          <boxGeometry args={[0.05, 0.05, 0.003]} />
-          <meshBasicMaterial color="#4f46e5" />
-        </mesh>
+        
+        {/* Screen hinge group */}
+        <group position={[0, 0.004, -0.09]} rotation={[0.25, 0, 0]}>
+          {/* Lid (Back of screen - faces candidate) */}
+          <mesh position={[0, 0.09, -0.004]} castShadow>
+            <boxGeometry args={[0.28, 0.18, 0.008]} />
+            <meshStandardMaterial color="#2d3748" roughness={0.3} metalness={0.75} />
+          </mesh>
+          
+          {/* Display (Front of screen - faces interviewer) */}
+          <mesh position={[0, 0.09, 0.001]}>
+            <boxGeometry args={[0.26, 0.16, 0.002]} />
+            <meshStandardMaterial color="#0b0f19" roughness={0.5} emissive="#1e3a8a" emissiveIntensity={0.25} />
+          </mesh>
+          
+          {/* Glowing back logo */}
+          <mesh position={[0, 0.09, -0.009]} rotation={[0, Math.PI, 0]}>
+            <boxGeometry args={[0.03, 0.03, 0.002]} />
+            <meshBasicMaterial color="#a855f7" />
+          </mesh>
+        </group>
       </group>
 
-      {/* Desk accessory — small notepad */}
+      {/* Notepad */}
       <mesh position={[-0.8, 0.57, -0.05]} rotation={[0, 0.15, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.28, 0.008, 0.20]} />
         <meshStandardMaterial color="#f8fafc" roughness={0.9} />
       </mesh>
 
-      {/* Desk accessory — pen */}
+      {/* Pen */}
       <mesh position={[-0.64, 0.576, -0.04]} rotation={[0, -0.4, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[0.005, 0.005, 0.22, 8]} />
         <meshStandardMaterial color="#3b4a6b" metalness={0.8} roughness={0.2} />
@@ -412,11 +451,11 @@ function InterviewDesk() {
   );
 }
 
-// ─── Office Chair ─────────────────────────────────────────────────────────────
-function InterviewChair() {
+// ─── Proportional Chair ────────────────────────────────────────────────────────
+function InterviewChair({ scaleFactor }) {
   return (
-    <group position={[0, -1, -0.55]}>
-      {/* High backrest */}
+    <group position={[0, 0, -0.3 * 1.8 * scaleFactor]} scale={scaleFactor}>
+      {/* Backrest */}
       <mesh position={[0, 1.08, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.82, 1.1, 0.07]} />
         <meshStandardMaterial color="#0d1425" roughness={0.65} />
@@ -431,13 +470,31 @@ function InterviewChair() {
         <boxGeometry args={[0.82, 0.075, 0.64]} />
         <meshStandardMaterial color="#0d1425" roughness={0.65} />
       </mesh>
-      {/* Gas cylinder */}
+      {/* Cylinder */}
       <mesh position={[0, 0.24, 0.2]} castShadow receiveShadow>
         <cylinderGeometry args={[0.035, 0.035, 0.48, 8]} />
         <meshStandardMaterial color="#4a5568" metalness={0.9} roughness={0.1} />
       </mesh>
     </group>
   );
+}
+
+// ─── Camera Rig — dynamically handles positioning based on model height ─────
+function CameraRig({ modelHeight }) {
+  const { camera } = useThree();
+
+  useEffect(() => {
+    if (modelHeight) {
+      // Dynamic camera placement targeting upper torso & centering the head
+      const cameraY = 0.72 * modelHeight;
+      const cameraZ = 3.3 * modelHeight;
+      camera.position.set(0, cameraY, cameraZ);
+      camera.lookAt(0, 0.72 * modelHeight, 0);
+      camera.updateProjectionMatrix();
+    }
+  }, [modelHeight, camera]);
+
+  return null;
 }
 
 // ─── Main Export ──────────────────────────────────────────────────────────────
@@ -449,10 +506,60 @@ export default function AIAvatar({ aiState: externalAiState }) {
   const isListening = aiState === 'Listening';
   const isStandalone = !externalAiState;
 
+  const modelPath = "/models/Hitem3d-1781792382042.glb";
+
+  useEffect(() => {
+    console.log("AIAvatar Mounted");
+    console.log("Loading GLB:", modelPath);
+
+    // Check if the GLB file exists and log loading status
+    fetch(modelPath, { method: 'HEAD' })
+      .then((res) => {
+        if (res.ok) {
+          console.log(`[AIAvatar] GLB file check SUCCESS: ${modelPath} exists and is accessible. Status: ${res.status}`);
+        } else {
+          console.error(`[AIAvatar] GLB file check FAILED: ${modelPath} returned status ${res.status}`);
+        }
+      })
+      .catch((err) => {
+        console.error(`[AIAvatar] GLB file check ERROR for ${modelPath}:`, err);
+      });
+  }, [modelPath]);
+
+  // Configuration computed dynamically based on THREE.Box3 bounds
+  const [modelConfig, setModelConfig] = useState({
+    height: 1.8,
+    width: 1.0,
+    center: new THREE.Vector3(0, 0.9, 0),
+    offsetX: 0,
+    offsetY: 0,
+    offsetZ: 0,
+    loaded: false,
+  });
+
+  const handleModelLoad = useCallback((config) => {
+    setModelConfig((prev) => {
+      // Avoid render-loop updates if configurations are identical
+      if (
+        prev.height === config.height &&
+        prev.width === config.width &&
+        prev.offsetX === config.offsetX &&
+        prev.offsetY === config.offsetY &&
+        prev.offsetZ === config.offsetZ &&
+        prev.loaded === config.loaded
+      ) {
+        return prev;
+      }
+      return config;
+    });
+  }, []);
+
+  const scaleFactor = modelConfig.height / 1.8;
+
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', background: 'transparent' }}>
 
-      {/* Standalone debug buttons */}
+      {/* Debug Buttons (only visible in standalone view) */}
       {isStandalone && (
         <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
           {['Idle', 'Speaking', 'Listening'].map((s) => (
@@ -476,7 +583,7 @@ export default function AIAvatar({ aiState: externalAiState }) {
         </div>
       )}
 
-      {/* State indicator dot */}
+      {/* State Badge */}
       {!isStandalone && (
         <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{
@@ -493,67 +600,79 @@ export default function AIAvatar({ aiState: externalAiState }) {
 
       <CanvasErrorBoundary>
         <Canvas
-          camera={{ position: [0, 1.3, 6], fov: 30 }}
+          camera={{ position: [0, 1.4, 4], fov: 35 }}
           shadows
           gl={{ antialias: true, alpha: true }}
           style={{ background: 'transparent' }}
         >
-          {/* ── Lighting ── */}
+          {/* Fixed Camera configuration - No CameraRig updates */}
 
-          {/* Ambient — keeps shadows soft */}
+          {/* ── Scaled Lighting Setup ── */}
           <ambientLight intensity={isListening ? 0.3 : 0.55} color="#c8d4f0" />
 
-          {/* Key light — soft warm from upper-left */}
+          {/* Key Light */}
           <directionalLight
-            position={[2.5, 4.5, 3]}
+            position={[2.5 * scaleFactor, 4.5 * scaleFactor, 3 * scaleFactor]}
             intensity={isSpeaking ? 1.7 : 1.4}
             castShadow
             color={isListening ? '#f3e8ff' : '#fdfcfb'}
             shadow-mapSize={[2048, 2048]}
-            shadow-camera-near={0.5}
-            shadow-camera-far={20}
-            shadow-camera-left={-4}
-            shadow-camera-right={4}
-            shadow-camera-top={4}
-            shadow-camera-bottom={-4}
+            shadow-camera-near={0.5 * scaleFactor}
+            shadow-camera-far={20 * scaleFactor}
+            shadow-camera-left={-4 * scaleFactor}
+            shadow-camera-right={4 * scaleFactor}
+            shadow-camera-top={4 * scaleFactor}
+            shadow-camera-bottom={-4 * scaleFactor}
           />
 
-          {/* Fill light — soft cool from right */}
+          {/* Fill Light */}
           <directionalLight
-            position={[-2.5, 3, 2]}
+            position={[-2.5 * scaleFactor, 3 * scaleFactor, 2 * scaleFactor]}
             intensity={0.4}
             color="#b4c8ff"
           />
 
-          {/* Rim / hair light — behind avatar */}
+          {/* Rim Light */}
           <directionalLight
-            position={[0, 3.5, -4]}
+            position={[0, 3.5 * scaleFactor, -4 * scaleFactor]}
             intensity={0.55}
             color="#7c3aed"
           />
 
-          {/* Under-face fill (prevents too-dark shadows under jaw) */}
-          <pointLight position={[0, 0.5, 2.8]} intensity={0.45} color="#ffffff" distance={5} />
+          {/* Face fill */}
+          <pointLight
+            position={[0, 0.5 * modelConfig.height, 2.8 * scaleFactor]}
+            intensity={0.45}
+            color="#ffffff"
+            distance={5 * scaleFactor}
+          />
 
-          {/* State-reactive accent light */}
+          {/* Active Speaking / Listening Visual Indicator Glows */}
           {isSpeaking && (
-            <pointLight position={[0, 0.6, 1.5]} intensity={1.2} color="#22c55e" distance={3.5} />
+            <pointLight
+              position={[0, 0.6 * modelConfig.height, 1.5 * scaleFactor]}
+              intensity={1.2}
+              color="#22c55e"
+              distance={3.5 * scaleFactor}
+            />
           )}
           {isListening && (
-            <pointLight position={[0, 0.9, 1.5]} intensity={1.4} color="#a855f7" distance={3.5} />
+            <pointLight
+              position={[0, 0.9 * modelConfig.height, 1.5 * scaleFactor]}
+              intensity={1.4}
+              color="#a855f7"
+              distance={3.5 * scaleFactor}
+            />
           )}
 
           <Environment preset="studio" />
 
-          {/* Orbit Controls for debugging — restricted to prevent wild angles */}
+          {/* Fixed camera controls - zoom, rotate, and pan disabled */}
           <OrbitControls
-            enableZoom={true}
+            enableZoom={false}
+            enableRotate={false}
             enablePan={false}
-            minPolarAngle={Math.PI / 5}
-            maxPolarAngle={Math.PI / 1.8}
-            minAzimuthAngle={-Math.PI / 6}
-            maxAzimuthAngle={Math.PI / 6}
-            target={[0, 0.5, 0]}
+            target={[0, 1.1, 0]}
           />
 
           <Suspense
@@ -586,20 +705,23 @@ export default function AIAvatar({ aiState: externalAiState }) {
             }
           >
             <InterviewerAvatar
-              url="/models/interviewer.glb"
+              url="/models/Hitem3d-1781792382042.glb"
               isSpeaking={isSpeaking}
               isListening={isListening}
+              onModelLoad={handleModelLoad}
+              modelHeight={modelConfig.height}
+              aiState={aiState}
             />
-            <InterviewChair />
-            <InterviewDesk />
+            <InterviewChair scaleFactor={scaleFactor} />
+            <InterviewDesk scaleFactor={scaleFactor} />
           </Suspense>
 
           <ContactShadows
-            position={[0, -1.01, 0]}
+            position={[0, -0.01, 0]}
             opacity={0.55}
-            scale={10}
+            scale={10 * scaleFactor}
             blur={2.5}
-            far={4}
+            far={4 * scaleFactor}
             color="#000000"
           />
         </Canvas>
@@ -608,5 +730,5 @@ export default function AIAvatar({ aiState: externalAiState }) {
   );
 }
 
-// Preload model
-useGLTF.preload('/models/interviewer.glb');
+// Preload the model file
+useGLTF.preload('/models/Hitem3d-1781792382042.glb');
