@@ -18,10 +18,13 @@ import InterviewBriefingPage from './components/InterviewBriefingPage';
 import InterviewReportPage from './components/InterviewReportPage';
 import LoginPage from './components/LoginPage';
 import { motion } from 'framer-motion';
-import { Loader2 } from 'lucide-react';
+import { Loader2, FileText, Target, CheckCircle2, TrendingUp, Video, Award, ChevronRight, Play, Upload, BookOpen } from 'lucide-react';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('Dashboard');
+  const [globalMediaStream, setGlobalMediaStream] = useState(null);
+  const [globalVoice, setGlobalVoice] = useState(null);
+
   
   // Authentication State
   const [userProfile, setUserProfile] = useState(() => {
@@ -160,6 +163,36 @@ function App() {
 
     fetchUserData();
   }, [userProfile]);
+
+  // Pre-load text-to-speech voices globally
+  useEffect(() => {
+    const loadVoices = () => {
+      if (globalVoice) return;
+      const voices = window.speechSynthesis.getVoices();
+      if (!voices || voices.length === 0) return;
+      const voicePriority = [
+        'microsoft aria', 'microsoft zira', 'google uk english female',
+        'google us english female', 'female', 'samantha', 'heera', 'veena',
+        'hazel', 'susan', 'tessa', 'fiona', 'moira', 'karen', 'victoria'
+      ];
+      const englishVoices = voices.filter(v => v.lang.startsWith('en') || v.lang.includes('en-'));
+      let foundVoice = null;
+      const targetLangs = ['en-US', 'en-IN'];
+      for (const lang of targetLangs) {
+        const langVoices = englishVoices.filter(v => v.lang.toLowerCase().includes(lang.toLowerCase()));
+        for (const priority of voicePriority) {
+          foundVoice = langVoices.find(v => v.name.toLowerCase().includes(priority));
+          if (foundVoice) break;
+        }
+        if (foundVoice) break;
+      }
+      if (!foundVoice) foundVoice = englishVoices.find(v => v.name.toLowerCase().includes('female')) || englishVoices[0] || voices[0];
+      setGlobalVoice(foundVoice);
+    };
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }, [globalVoice]);
+
 
   // Current session states
   const [showSetupModal, setShowSetupModal] = useState(false);
@@ -397,145 +430,279 @@ function App() {
           resumeData={resumeData}
         />
 
-        <main className="ml-64 p-8">
+        <main className="ml-[260px] p-8">
           {currentPage === 'Dashboard' ? (
             <motion.div 
               key="dashboard"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="max-w-7xl mx-auto"
+              className="max-w-7xl mx-auto space-y-8"
             >
-              {careerInsights && (
-                <div className="mb-8 glass p-6 border border-primary/30 rounded-2xl bg-gradient-to-br from-navy-800 to-navy-900 relative overflow-hidden">
-                  <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/20 blur-3xl rounded-full" />
-                  <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-                    <span className="text-2xl">💡</span> AI Mentor Insights
-                  </h3>
-                  <p className="text-gray-300 italic mb-4">{careerInsights.mentor_message}</p>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Recommended Next Step</h4>
-                      <div className="p-3 bg-white/5 border border-white/10 rounded-xl text-primary font-semibold">
-                        {careerInsights.next_interview_path || "Backend Developer Intermediate"}
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Learning Focus</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {careerInsights.learning_recommendations?.slice(0,3).map((rec, i) => (
-                          <span key={i} className="px-3 py-1 bg-warning/10 text-warning border border-warning/20 rounded-lg text-sm">{rec}</span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+              {/* Compact Hero Section (exactly 90px height) */}
+              <div className="bg-white border border-[#E5E7EB] px-8 h-[90px] rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] flex items-center justify-between transition-all duration-200">
+                <div className="space-y-1">
+                  <h1 className="text-2xl font-extrabold text-textPrimary tracking-tight">
+                    Welcome back, {userProfile?.name || "Shreya"} 👋
+                  </h1>
+                  <p className="text-textSecondary text-xs font-semibold">
+                    Continue preparing for your next interview.
+                  </p>
                 </div>
-              )}
-
-              {interviewHistory.length > 0 && interviewHistory[0].report?.career_coach && (
-                <div className="mb-8 space-y-6">
-                  <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                    <span className="text-3xl">🚀</span> Career Readiness Engine
-                  </h2>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Readiness Score Card */}
-                    <div className="glass p-6 border border-white/10 rounded-2xl flex flex-col items-center justify-center text-center bg-gradient-to-b from-navy-800 to-navy-900 relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-3xl rounded-full" />
-                      <h3 className="text-gray-400 font-semibold mb-4 uppercase tracking-widest text-xs">Interview Readiness</h3>
-                      <div className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary mb-2">
-                        {interviewHistory[0].report.career_coach.interview_readiness}%
-                      </div>
-                      <div className={`px-4 py-1.5 rounded-full text-sm font-bold border ${interviewHistory[0].report.career_coach.interview_readiness >= 90 ? 'bg-success/10 text-success border-success/20' : interviewHistory[0].report.career_coach.interview_readiness >= 80 ? 'bg-primary/10 text-primary border-primary/20' : interviewHistory[0].report.career_coach.interview_readiness >= 70 ? 'bg-warning/10 text-warning border-warning/20' : 'bg-danger/10 text-danger border-danger/20'}`}>
-                        {interviewHistory[0].report.career_coach.interview_readiness >= 90 ? 'Elite' : interviewHistory[0].report.career_coach.interview_readiness >= 80 ? 'Ready' : interviewHistory[0].report.career_coach.interview_readiness >= 70 ? 'Improving' : 'Needs Practice'}
-                      </div>
-                    </div>
-
-                    {/* AI Career Coach Insights */}
-                    <div className="glass p-6 border border-white/10 rounded-2xl md:col-span-2 relative overflow-hidden">
-                      <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-secondary/10 blur-3xl rounded-full" />
-                      <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
-                        <span>🤖</span> AI Career Coach
-                      </h3>
-                      <p className="text-gray-300 italic mb-6">"{interviewHistory[0].report.career_coach.mentor_insight}"</p>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="p-3 bg-white/5 border border-white/5 rounded-xl">
-                          <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Suggested Role</p>
-                          <p className="text-sm font-semibold text-white">{interviewHistory[0].report.career_coach.suggested_role}</p>
-                        </div>
-                        <div className="p-3 bg-white/5 border border-white/5 rounded-xl">
-                          <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Hiring Recommendation</p>
-                          <p className={`text-sm font-bold ${interviewHistory[0].report.career_coach.hiring_recommendation === 'Strongly Recommended' ? 'text-success' : interviewHistory[0].report.career_coach.hiring_recommendation === 'Recommended' ? 'text-primary' : interviewHistory[0].report.career_coach.hiring_recommendation === 'Borderline' ? 'text-warning' : 'text-danger'}`}>{interviewHistory[0].report.career_coach.hiring_recommendation}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Career Gap Analysis */}
-                    <div className="glass p-6 border border-white/10 rounded-2xl">
-                      <h3 className="text-white font-bold mb-4 flex items-center gap-2">
-                        <span className="text-warning">⚠️</span> Career Gap Analysis
-                      </h3>
-                      <div className="space-y-3">
-                        <p className="text-sm text-gray-400">Missing Critical Skills:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {interviewHistory[0].report.career_coach.skill_gaps?.map((gap, i) => (
-                            <span key={i} className="px-3 py-1 bg-danger/10 text-danger border border-danger/20 rounded-lg text-sm">{gap}</span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Learning Roadmap */}
-                    <div className="glass p-6 border border-white/10 rounded-2xl lg:col-span-2">
-                      <h3 className="text-white font-bold mb-4 flex items-center gap-2">
-                        <span className="text-success">📈</span> Personalized Learning Roadmap
-                      </h3>
-                      <div className="relative">
-                        <div className="absolute top-0 bottom-0 left-[15px] w-0.5 bg-white/10" />
-                        <div className="space-y-4">
-                          {interviewHistory[0].report.career_coach.roadmap?.map((step, i) => (
-                            <div key={i} className="relative pl-10">
-                              <div className="absolute left-0 top-1.5 w-8 h-8 rounded-full bg-navy-900 border-2 border-primary flex items-center justify-center z-10">
-                                <div className="w-2 h-2 rounded-full bg-primary" />
-                              </div>
-                              <h4 className="text-white font-semibold text-sm">{step.week}</h4>
-                              <p className="text-gray-400 text-sm">{step.focus}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <KPICards resumeData={resumeData} history={interviewHistory} />
-              
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                <div className="lg:col-span-1">
-                  <ResumeAnalysis resumeData={resumeData} />
-                </div>
-                <div className="lg:col-span-2">
-                  <PerformanceRadar resumeData={resumeData} history={interviewHistory} />
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setShowSetupModal(true)}
+                    className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/95 text-white font-bold text-xs transition-all shadow-sm flex items-center gap-2 hover:translate-y-[-1px]"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-white" /> Start Mock Interview
+                  </button>
+                  <button 
+                    onClick={() => setCurrentPage('Resume Analysis')}
+                    className="px-5 py-2.5 rounded-xl border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 text-textSecondary hover:text-textPrimary font-bold text-xs transition-all shadow-sm flex items-center gap-2"
+                  >
+                    <Upload className="w-3.5 h-3.5" /> Upload Resume
+                  </button>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                <div className="lg:col-span-2">
-                  <QuestionAnalysis resumeData={resumeData} history={interviewHistory} />
+              {/* Quick Stats Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* 1. Resume Score */}
+                <div className="bg-white border border-[#E5E7EB] p-5 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] space-y-3 transition-all duration-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-textSecondary uppercase tracking-wider">Resume Score</span>
+                    <div className="w-8 h-8 rounded-lg bg-primary/5 border border-primary/10 flex items-center justify-center text-primary">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-3xl font-extrabold text-textPrimary">--</div>
+                    <p className="text-xs text-textSecondary font-medium">📄 Upload your resume to generate insights.</p>
+                  </div>
                 </div>
-                <div className="lg:col-span-1">
-                  <ScoreBreakdown resumeData={resumeData} history={interviewHistory} />
+
+                {/* 2. ATS Score */}
+                <div className="bg-white border border-[#E5E7EB] p-5 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] space-y-3 transition-all duration-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-textSecondary uppercase tracking-wider">ATS Score</span>
+                    <div className="w-8 h-8 rounded-lg bg-secondary/5 border border-secondary/10 flex items-center justify-center text-secondary">
+                      <Target className="w-5 h-5" />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-3xl font-extrabold text-textPrimary">--</div>
+                    <p className="text-xs text-textSecondary font-medium">📈 Analyze your resume to calculate ATS compatibility.</p>
+                  </div>
+                </div>
+
+                {/* 3. Interview Score */}
+                <div className="bg-white border border-[#E5E7EB] p-5 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] space-y-3 transition-all duration-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-textSecondary uppercase tracking-wider">Interview Score</span>
+                    <div className="w-8 h-8 rounded-lg bg-success/5 border border-success/10 flex items-center justify-center text-success">
+                      <CheckCircle2 className="w-5 h-5" />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-3xl font-extrabold text-textPrimary">--</div>
+                    <p className="text-xs text-textSecondary font-medium">🎤 Complete your first mock interview.</p>
+                  </div>
+                </div>
+
+                {/* 4. Interview Readiness */}
+                <div className="bg-white border border-[#E5E7EB] p-5 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] space-y-3 transition-all duration-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-textSecondary uppercase tracking-wider">Interview Readiness</span>
+                    <div className="w-8 h-8 rounded-lg bg-warning/5 border border-warning/10 flex items-center justify-center text-warning">
+                      <TrendingUp className="w-5 h-5" />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-3xl font-extrabold text-textPrimary">--</div>
+                    <p className="text-xs text-textSecondary font-medium">🚀 Complete your first interview to unlock readiness insights.</p>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <ATSSuggestions resumeData={resumeData} />
-                <RecentInterviews resumeData={resumeData} history={interviewHistory} />
+              {/* Two-Column SaaS Content Layout: Left (60%) & Right (40%) */}
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                
+                {/* LEFT SIDE (60%): spans 3 of 5 columns */}
+                <div className="lg:col-span-3 space-y-6">
+                  
+                  {/* 1. Interview Readiness Card */}
+                  <div className="bg-white border border-[#E5E7EB] p-8 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] flex flex-col justify-between items-center text-center space-y-6 transition-all duration-200 min-h-[340px]">
+                    <div className="space-y-1">
+                      <h3 className="text-base font-bold text-textPrimary">Interview Readiness</h3>
+                      <p className="text-xs text-textSecondary font-semibold">Your preparation score calculated by AI</p>
+                    </div>
+
+                    {/* Empty circular progress ring placeholder */}
+                    <div className="relative w-36 h-36 flex items-center justify-center">
+                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                        <circle 
+                          cx="50" cy="50" r="40" 
+                          stroke="#F3F4F6" strokeWidth="8" fill="transparent" 
+                        />
+                        <circle 
+                          cx="50" cy="50" r="40" 
+                          stroke="#E5E7EB" strokeWidth="8" fill="transparent" 
+                          strokeDasharray={2 * Math.PI * 40}
+                          strokeDashoffset={2 * Math.PI * 40}
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <div className="absolute flex flex-col items-center justify-center">
+                        <span className="text-3xl font-black text-textSecondary">--</span>
+                        <span className="text-[10px] text-textSecondary uppercase tracking-widest font-extrabold mt-0.5">READY</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 w-full">
+                      <p className="text-xs text-textSecondary leading-relaxed px-6">
+                        Complete your first mock interview to generate your readiness score.
+                      </p>
+                      <button 
+                        onClick={() => setShowSetupModal(true)}
+                        className="w-full py-2.5 rounded-xl bg-primary hover:bg-primary/95 text-white font-bold text-sm transition-all shadow-sm"
+                      >
+                        Take Mock Interview
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2. Performance Trend Card */}
+                  <div className="bg-white border border-[#E5E7EB] p-8 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] flex flex-col justify-between transition-all duration-200 min-h-[340px]">
+                    <div className="space-y-1">
+                      <h3 className="text-base font-bold text-textPrimary">Performance Trend</h3>
+                      <p className="text-xs text-textSecondary font-semibold">Mock interview score milestones</p>
+                    </div>
+
+                    {/* Empty state chart illustration */}
+                    <div className="flex-grow flex flex-col items-center justify-center py-8 space-y-3">
+                      <div className="w-16 h-16 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-textSecondary shadow-sm">
+                        <TrendingUp className="w-8 h-8 opacity-40" />
+                      </div>
+                      <p className="text-xs text-textSecondary font-bold">No interview data available yet.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* RIGHT SIDE (40%): spans 2 of 5 columns */}
+                <div className="lg:col-span-2 space-y-6">
+                  
+                  {/* 1. Recent Interviews Card */}
+                  <div className="bg-white border border-[#E5E7EB] p-8 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] flex flex-col justify-between transition-all duration-200 min-h-[340px]">
+                    <div className="space-y-1">
+                      <h3 className="text-base font-bold text-textPrimary">Recent Interviews</h3>
+                      <p className="text-xs text-textSecondary font-semibold">History of your mock sessions</p>
+                    </div>
+
+                    {/* Empty state table illustration */}
+                    <div className="flex-grow flex flex-col items-center justify-center py-10 space-y-4">
+                      <div className="w-14 h-14 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-textSecondary shadow-sm">
+                        <Video className="w-6 h-6 opacity-40" />
+                      </div>
+                      <div className="text-center space-y-1">
+                        <p className="text-xs text-textPrimary font-bold">No interviews completed yet.</p>
+                        <p className="text-[11px] text-textSecondary">Your mock records will appear here after your first session.</p>
+                      </div>
+                      <button 
+                        onClick={() => setShowSetupModal(true)}
+                        className="px-4 py-2 border border-primary/20 hover:border-primary/40 text-xs font-bold rounded-xl bg-primary/5 hover:bg-primary/10 text-primary transition-all duration-200 shadow-sm"
+                      >
+                        Start First Interview
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2. Recommended Actions Card */}
+                  <div className="bg-white border border-[#E5E7EB] p-8 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] flex flex-col justify-between transition-all duration-200 min-h-[340px]">
+                    <div className="space-y-1 mb-4">
+                      <h3 className="text-base font-bold text-textPrimary">Recommended Actions</h3>
+                      <p className="text-xs text-textSecondary font-semibold">Steps to accelerate your progress</p>
+                    </div>
+
+                    <div className="space-y-4 flex-grow flex flex-col justify-center">
+                      {/* Action 1: Upload Resume */}
+                      <div className="flex items-center justify-between p-3.5 bg-gray-50 border border-gray-100 rounded-2xl hover:border-gray-200 transition-all">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+                            <FileText className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-textPrimary">Upload Resume</h4>
+                            <p className="text-[10px] text-textSecondary mt-0.5">Parse metrics & target suggestions.</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setCurrentPage('Resume Analysis')}
+                          className="p-1.5 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-white text-textSecondary hover:text-textPrimary transition-all"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Action 2: Run ATS Analysis */}
+                      <div className="flex items-center justify-between p-3.5 bg-gray-50 border border-gray-100 rounded-2xl hover:border-gray-200 transition-all">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-secondary/5 border border-secondary/10 flex items-center justify-center text-secondary flex-shrink-0">
+                            <Target className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-textPrimary">Run ATS Analysis</h4>
+                            <p className="text-[10px] text-textSecondary mt-0.5">Check for job profile matches.</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setCurrentPage('ATS Checker')}
+                          className="p-1.5 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-white text-textSecondary hover:text-textPrimary transition-all"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Action 3: Start Mock Interview */}
+                      <div className="flex items-center justify-between p-3.5 bg-gray-50 border border-gray-100 rounded-2xl hover:border-gray-200 transition-all">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-success/5 border border-success/10 flex items-center justify-center text-success flex-shrink-0">
+                            <Video className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-textPrimary">Start Mock Interview</h4>
+                            <p className="text-[10px] text-textSecondary mt-0.5">Engage in live proctored sessions.</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setShowSetupModal(true)}
+                          className="p-1.5 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-white text-textSecondary hover:text-textPrimary transition-all"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Action 4: Visit Career Coach */}
+                      <div className="flex items-center justify-between p-3.5 bg-gray-50 border border-gray-100 rounded-2xl hover:border-gray-200 transition-all">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-warning/5 border border-warning/10 flex items-center justify-center text-warning flex-shrink-0">
+                            <BookOpen className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-xs font-bold text-textPrimary">Visit Career Coach</h4>
+                            <p className="text-[10px] text-textSecondary mt-0.5">Get roadmap & learning paths.</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => setShowSetupModal(true)}
+                          className="p-1.5 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-white text-textSecondary hover:text-textPrimary transition-all"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
               </div>
             </motion.div>
           ) : currentPage === 'Resume Analysis' ? (
@@ -563,6 +730,7 @@ function App() {
                 sessionConfig={currentSessionConfig} 
                 resumeData={resumeData}
                 onBegin={() => setCurrentPage('Mock Interview')}
+                onCameraReady={setGlobalMediaStream}
               />
             </motion.div>
           ) : currentPage === 'Mock Interview' ? (
@@ -585,6 +753,8 @@ function App() {
                   sessionConfig={currentSessionConfig}
                   resumeData={resumeData}
                   onSubmit={handleFinishInterview}
+                  globalMediaStream={globalMediaStream}
+                  globalVoice={globalVoice}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center py-32 text-center">

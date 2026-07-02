@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
+import { motion, AnimatePresence } from 'framer-motion';
 import AIAvatar from './AIAvatar';
 
 // ─── Text Cleanup Utility ─────────────────────────────────────────────────────
@@ -143,13 +144,23 @@ export default function MockInterviewPage({
   setQuestions,
   sessionConfig,
   resumeData,
+  globalMediaStream,
+  globalVoice
 }) {
+  const [showLoadingOverlay, setShowLoadingOverlay] = useState(true);
   const [answers, setAnswers] = useState({});
   const [isGenerating, setIsGenerating] = useState(false);
   const totalQuestions = 20;
 
   // Elapsed Timer state
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+
+  // Startup Orchestration States
+  const [isCameraReady, setIsCameraReady] = useState(false);
+  const [isGlbModelLoaded, setIsGlbModelLoaded] = useState(false);
+  const [uiRendered, setUiRendered] = useState(false);
+  const [startupReady, setStartupReady] = useState(false);
 
   // Anti-cheat / Proctoring states
   const [warnings, setWarnings] = useState(0);
@@ -168,6 +179,7 @@ export default function MockInterviewPage({
   // MediaPipe
   const videoRef = useRef(null);
   const [isModelLoading, setIsModelLoading] = useState(true);
+  const [cameraError, setCameraError] = useState(false);
   const [lookingAway, setLookingAway] = useState(false);
   const faceLandmarkerRef = useRef(null);
   const animationRef = useRef(null);
@@ -175,12 +187,7 @@ export default function MockInterviewPage({
 
   // Speech and Conversational States
   const [interviewerState, setInterviewerState] = useState('Idle'); // 'Idle', 'Speaking', 'Listening', 'Analyzing'
-  const [typedText, setTypedText] = useState('');
-  const [candidateSpeechText, setCandidateSpeechText] = useState('');
   const [isMicActive, setIsMicActive] = useState(false);
-  const [ttsStatus, setTtsStatus] = useState(null);
-
-  const typewriterTimer = useRef(null);
   const recognitionRef = useRef(null);
   const silenceTimeoutRef = useRef(null);
   const selectedVoiceRef = useRef(null);
@@ -197,11 +204,12 @@ export default function MockInterviewPage({
 
   // ─── Timer implementation ───────────────────────────────────────────────────
   useEffect(() => {
+    if (!isTimerRunning) return;
     const timer = setInterval(() => {
       setElapsedTime((prev) => prev + 1);
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isTimerRunning]);
 
   const formatTime = (totalSeconds) => {
     const hrs = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
@@ -212,38 +220,26 @@ export default function MockInterviewPage({
 
   // Set up listeners to load and lock voices as early as possible (storing in component state)
   useEffect(() => {
-    console.log("MockInterviewPage Mounted");
-
     const selectAndLockVoice = () => {
-      // If voice is already stored in state, do not re-select
       if (selectedVoiceRef.current) return;
+
+      if (globalVoice) {
+        selectedVoiceRef.current = globalVoice;
+        setVoice(globalVoice);
+        return;
+      }
 
       const voices = window.speechSynthesis.getVoices();
       if (!voices || voices.length === 0) return;
 
-      // Ordered selection priority with preferences for female English, en-US, en-IN
       const voicePriority = [
-        'microsoft aria',
-        'microsoft zira',
-        'google uk english female',
-        'google us english female',
-        'female',
-        'samantha',
-        'heera',
-        'veena',
-        'hazel',
-        'susan',
-        'tessa',
-        'fiona',
-        'moira',
-        'karen',
-        'victoria'
+        'microsoft aria', 'microsoft zira', 'google uk english female', 'google us english female', 'female',
+        'samantha', 'heera', 'veena', 'hazel', 'susan', 'tessa', 'fiona', 'moira', 'karen', 'victoria'
       ];
 
       const englishVoices = voices.filter(v => v.lang.startsWith('en') || v.lang.includes('en-'));
       let foundVoice = null;
       
-      // Try to find preferred en-US or en-IN female voice first
       const targetLangs = ['en-US', 'en-IN'];
       for (const lang of targetLangs) {
         const langVoices = englishVoices.filter(v => v.lang.toLowerCase().includes(lang.toLowerCase()));
@@ -254,7 +250,6 @@ export default function MockInterviewPage({
         if (foundVoice) break;
       }
 
-      // Fallback 1: Any general English female voice matching the priorities list
       if (!foundVoice) {
         for (const priority of voicePriority) {
           foundVoice = englishVoices.find(v => v.name.toLowerCase().includes(priority));
@@ -262,17 +257,14 @@ export default function MockInterviewPage({
         }
       }
 
-      // Fallback 2: Any voice containing "female"
       if (!foundVoice) {
         foundVoice = voices.find(v => v.name.toLowerCase().includes('female'));
       }
 
-      // Fallback 3: First available English voice
       if (!foundVoice && englishVoices.length > 0) {
         foundVoice = englishVoices[0];
       }
 
-      // Final Fallback: First voice
       if (!foundVoice) {
         foundVoice = voices[0];
       }
@@ -280,7 +272,6 @@ export default function MockInterviewPage({
       if (foundVoice) {
         selectedVoiceRef.current = foundVoice;
         setVoice(foundVoice);
-        console.log("Selected Voice:", foundVoice.name);
       }
     };
 
@@ -296,30 +287,40 @@ export default function MockInterviewPage({
     };
   }, []);
 
+  // ─── Startup Orchestrator ────────────────────────────────────────────────────
+  const loadingComplete = isCameraReady && isGlbModelLoaded && voiceReady && !!currentQuestion;
+
   useEffect(() => {
-    console.log("Interview State:", interviewerState);
-  }, [interviewerState]);
+    if (loadingComplete && !uiRendered) {
+      console.log("[Startup] All loading checks passed. Fading out loading overlay...");
+      setShowLoadingOverlay(false);
+      setUiRendered(true);
+    }
+  }, [loadingComplete, uiRendered]);
+
+  useEffect(() => {
+    if (uiRendered) {
+      console.log("[Startup] UI rendered, starting 700ms settle delay...");
+      const timer = setTimeout(() => {
+        console.log("[Startup] Settle delay complete. Startup ready!");
+        setStartupReady(true);
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [uiRendered]);
 
   // ─── Text-to-Speech (TTS) Engine ─────────────────────────────────────────────
   const speakQuestion = (text, onEndCallback) => {
-    // Set active question text BEFORE calling cancel() to avoid synchronous race conditions
     activeQuestionRef.current = text;
     window.speechSynthesis.cancel();
     
     const utterance = new SpeechSynthesisUtterance(text);
     
-    // Use the exact same locked voice stored in state
     const voiceToUse = voice;
     if (voiceToUse) {
       utterance.voice = voiceToUse;
-    } else {
-      console.warn('[TTS] No female voice loaded yet. Fallback check.');
     }
     
-    utterance.onstart = () => {
-      setTtsStatus(null);
-    };
-
     utterance.onend = () => {
       if (activeQuestionRef.current === text) {
         if (onEndCallback) onEndCallback();
@@ -330,63 +331,34 @@ export default function MockInterviewPage({
       if (e.error === 'interrupted' || activeQuestionRef.current !== text) {
         return;
       }
-      console.error('[TTS] Speech synthesis error:', e);
-      setTtsStatus("Voice generation unavailable.");
       if (onEndCallback) onEndCallback();
     };
     
     window.speechSynthesis.speak(utterance);
   };
 
-  // ─── Typewriter and Speech orchestration ──────────────────────────────────────
+  // ─── Speech orchestration ───────────────────────────────────────────────────
   useEffect(() => {
-    if (!currentQuestion || !voiceReady) return;
+    if (!currentQuestion || !voiceReady || !startupReady) return;
 
-    console.log("QUESTION RECEIVED BY TYPEWRITER:", currentQuestion);
-
-    // Use the ORIGINAL generated question text directly (never clean/modify LLM output)
     const originalQuestion = currentQuestion.trim();
-
-    setTypedText('');
-    setCandidateSpeechText('');
     stopSpeechRecognition();
     
-    if (typewriterTimer.current) clearInterval(typewriterTimer.current);
-
-    // Enter Speaking State
     setInterviewerState('Speaking');
 
-    // Start typewriter effect - reveals characters sequentially
-    let idx = 0;
-    typewriterTimer.current = setInterval(() => {
-      setTypedText((prev) => prev + originalQuestion.charAt(idx));
-      idx++;
-      if (idx >= originalQuestion.length) {
-        clearInterval(typewriterTimer.current);
-      }
-    }, 30);
-
-    // Speak identical question, transition to listening after speaking is done
     speakQuestion(originalQuestion, () => {
       setInterviewerState('Listening');
       startSpeechRecognition();
+      setIsTimerRunning(true);
     });
-
-    return () => {
-      if (typewriterTimer.current) clearInterval(typewriterTimer.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentQuestion, voiceReady]);
+  }, [currentQuestion, voiceReady, startupReady]);
 
   // ─── Speech-to-Text (STT) Engine ─────────────────────────────────────────────
   function startSpeechRecognition() {
     stopSpeechRecognition();
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      console.warn('[STT] Speech recognition API not supported in this browser.');
-      return;
-    }
+    if (!SpeechRecognition) return;
 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
@@ -396,7 +368,6 @@ export default function MockInterviewPage({
     let finalTranscript = '';
 
     recognition.onstart = () => {
-      console.log('[STT] Candidate microphone listening active.');
       setIsMicActive(true);
     };
 
@@ -412,22 +383,14 @@ export default function MockInterviewPage({
       }
       
       const currentFullText = finalTranscript + interimTranscript;
-      setCandidateSpeechText(currentFullText);
 
-      // Silence Detection: Auto submit after 4 seconds of silence
       if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
       silenceTimeoutRef.current = setTimeout(() => {
-        console.log('[STT] Silence threshold reached. Automatically saving response.');
         handleSpeechSubmit(currentFullText);
       }, 4000);
     };
 
-    recognition.onerror = (e) => {
-      console.error('[STT] Speech recognition error encountered:', e.error);
-    };
-
     recognition.onend = () => {
-      console.log('[STT] Candidate microphone listening deactivated.');
       setIsMicActive(false);
     };
 
@@ -440,14 +403,11 @@ export default function MockInterviewPage({
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch (e) {
-        // Already stopped
-      }
+      } catch (e) {}
     }
   };
 
   async function handleSpeechSubmit(text) {
-    // Apply cleaning filter on candidate STT output before storing
     const finalAnswer = cleanText(text) || 'No answer provided.';
     const updatedAnswers = { ...answers, [questionNumber]: finalAnswer };
     setAnswers(updatedAnswers);
@@ -483,7 +443,6 @@ export default function MockInterviewPage({
       });
       if (res.ok) {
         const data = await res.json();
-        console.log("QUESTION BEFORE STORAGE:", data.question);
         setQuestions([...questions, data.question || 'Can you elaborate on your previous answer?']);
         setQuestionNumber(questionNumber + 1);
       }
@@ -494,17 +453,14 @@ export default function MockInterviewPage({
     }
   };
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       activeQuestionRef.current = null;
       stopSpeechRecognition();
       window.speechSynthesis.cancel();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ─── Force submit ────────────────────────────────────────────────────────────
   const handleForceSubmit = useCallback(
     (isDisqualified = false) => {
       isSubmittingRef.current = true;
@@ -517,7 +473,6 @@ export default function MockInterviewPage({
     [answers, onSubmit, questions]
   );
 
-  // ─── Violation handler ───────────────────────────────────────────────────────
   const handleViolation = useCallback(
     (message = 'You have switched tabs, exited full-screen, or lost focus.') => {
       if (showWarningRef.current) return;
@@ -525,7 +480,6 @@ export default function MockInterviewPage({
       setWarningMessage(message);
       setWarnings((prev) => {
         if (prev >= 2) {
-          alert('You have exceeded the maximum number of warnings. The interview will now be automatically submitted.');
           handleForceSubmit(true);
           return 3;
         }
@@ -536,7 +490,6 @@ export default function MockInterviewPage({
     [handleForceSubmit]
   );
 
-  // ─── Anti-cheat event listeners ──────────────────────────────────────────────
   useEffect(() => {
     const onVisibility = () => {
       if (document.hidden && !isSubmittingRef.current)
@@ -560,10 +513,8 @@ export default function MockInterviewPage({
       window.removeEventListener('blur', onBlur);
       document.removeEventListener('fullscreenchange', onFullscreen);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [handleViolation]);
 
-  // ─── MediaPipe init ───────────────────────────────────────────────────────────
   useEffect(() => {
     let isMounted = true;
     const init = async () => {
@@ -592,24 +543,42 @@ export default function MockInterviewPage({
         detectorRef.current = detector;
         setIsModelLoading(false);
 
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        if (!isMounted) { stream.getTracks().forEach((t) => t.stop()); return; }
+        let stream = globalMediaStream;
+        if (!stream) {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        }
+        if (!isMounted) return;
         streamRef.current = stream;
-        if (videoRef.current) videoRef.current.srcObject = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          console.log("Video element attached");
+          videoRef.current.play().then(() => {
+            console.log("Video playback started");
+            setIsCameraReady(true);
+          }).catch(err => {
+            console.error("Video playback failed:", err);
+            setIsCameraReady(true);
+          });
+        } else {
+          setIsCameraReady(true);
+        }
       } catch (err) {
-        console.error('Camera / proctoring init failed', err);
-        if (isMounted) handleViolation('Camera disconnected or unavailable.');
+        console.error("Initialization failed:", err);
+        if (isMounted) {
+          if (err.name === 'NotAllowedError' || err.name === 'NotFoundError' || err.name === 'NotReadableError') {
+            setCameraError(true);
+          }
+          setIsModelLoading(false);
+        }
       }
     };
     init();
     return () => {
       isMounted = false;
-      if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
       if (faceLandmarkerRef.current) faceLandmarkerRef.current.close();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [globalMediaStream]);
 
   const detectObjects = async () => {
     if (!videoRef.current || !detectorRef.current || showWarningRef.current) return;
@@ -637,9 +606,7 @@ export default function MockInterviewPage({
           phoneLastSeenTimeRef.current = Date.now();
         }
       }
-    } catch (err) {
-      console.error('Object detection error:', err);
-    }
+    } catch (err) {}
   };
 
   const handleVideoLoad = () => {
@@ -665,7 +632,7 @@ export default function MockInterviewPage({
               awayFrames++;
               if (awayFrames > 12) { handleViolation('AI could not detect your face. Please stay in frame.'); awayFrames = 0; }
             }
-          } catch (e) { console.error('Face landmark error:', e); }
+          } catch (e) {}
         }
         const now = Date.now();
         if (now - lastObjTime > 500) { lastObjTime = now; await detectObjects(); }
@@ -681,23 +648,52 @@ export default function MockInterviewPage({
     setTimeout(() => { showWarningRef.current = false; }, 1000);
   };
 
-  // ─── Render ───────────────────────────────────────────────────────────────────
   return (
-    <>
-      {/* ── Proctoring Warning Modal ── */}
+    <div className="flex flex-col h-[calc(100vh-6rem)] relative select-none">
+      <AnimatePresence>
+        {showLoadingOverlay && (
+          <motion.div
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-[#F8FAFC] backdrop-blur-md"
+          >
+            <Loader2 className="w-12 h-12 text-primary animate-spin mb-6" />
+            <h2 className="text-2xl font-bold text-textPrimary mb-8">Preparing Interview...</h2>
+            <div className="space-y-4 text-left">
+              <div className={`flex items-center gap-3 ${isCameraReady ? 'text-emerald-600 font-semibold' : 'text-textSecondary'}`}>
+                {isCameraReady ? <CheckCircle className="w-5 h-5" /> : <Loader2 className="w-5 h-5 animate-spin" />}
+                <span className="font-medium text-sm">Connecting Camera</span>
+              </div>
+              <div className={`flex items-center gap-3 ${isGlbModelLoaded ? 'text-emerald-600 font-semibold' : 'text-textSecondary'}`}>
+                {isGlbModelLoaded ? <CheckCircle className="w-5 h-5" /> : <Loader2 className="w-5 h-5 animate-spin" />}
+                <span className="font-medium text-sm">Loading AI Interviewer</span>
+              </div>
+              <div className={`flex items-center gap-3 ${voiceReady ? 'text-emerald-600 font-semibold' : 'text-textSecondary'}`}>
+                {voiceReady ? <CheckCircle className="w-5 h-5" /> : <Loader2 className="w-5 h-5 animate-spin" />}
+                <span className="font-medium text-sm">Initializing Female AI Voice</span>
+              </div>
+              <div className={`flex items-center gap-3 ${!!currentQuestion ? 'text-emerald-600 font-semibold' : 'text-textSecondary'}`}>
+                {!!currentQuestion ? <CheckCircle className="w-5 h-5" /> : <Loader2 className="w-5 h-5 animate-spin" />}
+                <span className="font-medium text-sm">Preparing First Question</span>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {showWarning && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 100,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: 16,
-          background: 'rgba(10,12,28,0.96)',
+          background: 'rgba(248,250,252,0.95)',
           backdropFilter: 'blur(12px)',
         }}>
           <div style={{
-            background: '#0f172a',
-            border: '1px solid rgba(239,68,68,0.4)',
+            background: '#ffffff',
+            border: '1px solid #E5E7EB',
             borderRadius: 20,
-            boxShadow: '0 25px 60px rgba(239,68,68,0.15)',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.06)',
             padding: 36,
             maxWidth: 480,
             width: '100%',
@@ -711,16 +707,16 @@ export default function MockInterviewPage({
             }}>
               <AlertTriangle size={28} color="#ef4444" />
             </div>
-            <h2 style={{ color: '#fff', fontSize: '1.4rem', fontWeight: 800, marginBottom: 8 }}>Proctoring Violation</h2>
-            <p style={{ color: '#94a3b8', marginBottom: 20 }}>{warningMessage}</p>
+            <h2 style={{ color: '#111827', fontSize: '1.4rem', fontWeight: 800, marginBottom: 8 }}>Proctoring Violation</h2>
+            <p style={{ color: '#6B7280', marginBottom: 20 }}>{warningMessage}</p>
             <div style={{
-              background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+              background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)',
               borderRadius: 12, padding: '14px 20px', marginBottom: 24,
             }}>
-              <p style={{ color: '#f87171', fontWeight: 700, fontSize: '1.1rem', marginBottom: 4 }}>
+              <p style={{ color: '#ef4444', fontWeight: 700, fontSize: '1.1rem', marginBottom: 4 }}>
                 Warning {warnings} of 3
               </p>
-              <p style={{ color: 'rgba(248,113,113,0.75)', fontSize: '0.8rem' }}>
+              <p style={{ color: 'rgba(239,68,68,0.85)', fontSize: '0.8rem' }}>
                 3 warnings will automatically terminate your interview.
               </p>
             </div>
@@ -739,9 +735,6 @@ export default function MockInterviewPage({
         </div>
       )}
 
-      {/* ── Page Root ── */}
-      <div className="select-none" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-
         {/* ── Page Header ── */}
         <div style={{
           display: 'flex',
@@ -749,31 +742,31 @@ export default function MockInterviewPage({
           justifyContent: 'space-between',
           marginBottom: 24,
           padding: '16px 24px',
-          background: 'rgba(15, 23, 42, 0.4)',
-          border: '1px solid rgba(255, 255, 255, 0.05)',
+          background: '#ffffff',
+          border: '1px solid #E5E7EB',
           borderRadius: 16,
-          backdropFilter: 'blur(8px)'
+          boxShadow: '0 4px 12px rgba(0,0,0,0.02)'
         }}>
           <div>
-            <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
-              <span style={{ color: '#8B5CF6' }}>✦</span> AI Interview Room
+            <h1 className="text-xl font-bold text-textPrimary tracking-tight flex items-center gap-2">
+              <span style={{ color: '#4F46E5' }}>✦</span> AI Interview Room
             </h1>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
             {/* Dynamic Question Counter */}
-            <div style={{ color: '#94a3b8', fontSize: '0.875rem', fontWeight: 600 }}>
-              Question <span style={{ color: '#fff' }}>{questionNumber}</span> of <span style={{ color: '#fff' }}>{totalQuestions}</span>
+            <div style={{ color: '#6B7280', fontSize: '0.875rem', fontWeight: 600 }}>
+              Question <span style={{ color: '#111827' }}>{questionNumber}</span> of <span style={{ color: '#111827' }}>{totalQuestions}</span>
             </div>
 
             {/* Dynamic Timer */}
             <div style={{
-              color: '#8B5CF6',
+              color: '#4F46E5',
               fontSize: '0.875rem',
               fontWeight: 700,
               fontFamily: 'monospace',
-              background: 'rgba(139, 92, 246, 0.1)',
-              border: '1px solid rgba(139, 92, 246, 0.2)',
+              background: 'rgba(79, 70, 229, 0.05)',
+              border: '1px solid rgba(79, 70, 229, 0.15)',
               padding: '4px 12px',
               borderRadius: 8
             }}>
@@ -798,7 +791,7 @@ export default function MockInterviewPage({
                 cursor: 'pointer',
                 transition: 'all 0.2s'
               }}
-              onMouseEnter={(e) => { e.target.style.background = 'rgba(239, 68, 68, 0.1)'; }}
+              onMouseEnter={(e) => { e.target.style.background = 'rgba(239, 68, 68, 0.05)'; }}
               onMouseLeave={(e) => { e.target.style.background = 'transparent'; }}
             >
               End Interview
@@ -813,7 +806,8 @@ export default function MockInterviewPage({
           gap: 24,
           alignItems: 'stretch',
           marginBottom: 24,
-          minHeight: 560
+          flex: 1,
+          minHeight: 0
         }}>
           {/* LEFT SIDE: AI Interviewer Panel */}
           <div style={{
@@ -884,9 +878,12 @@ export default function MockInterviewPage({
             </div>
 
             {/* 3D Model Canvas area */}
-            <div style={{ flex: 1, position: 'relative', minHeight: 480 }}>
+            <div style={{ flex: 1, position: 'relative' }}>
               <AIAvatarErrorBoundary>
-                <AIAvatar aiState={interviewerState} />
+                <AIAvatar aiState={interviewerState} onLoad={() => {
+                  console.log("[AIAvatar] GLB model fully loaded and dimensions calculated.");
+                  setIsGlbModelLoaded(true);
+                }} />
               </AIAvatarErrorBoundary>
               
               {/* Speaking Waveform */}
@@ -981,7 +978,7 @@ export default function MockInterviewPage({
             </div>
 
             {/* Webcam Video area */}
-            <div style={{ flex: 1, position: 'relative', minHeight: 480, background: '#020617' }}>
+            <div style={{ flex: 1, position: 'relative', background: '#020617' }}>
               {isModelLoading && (
                 <div style={{
                   position: 'absolute', inset: 0,
@@ -991,6 +988,25 @@ export default function MockInterviewPage({
                   <Loader2 size={36} color="#8B5CF6" className="animate-spin" />
                 </div>
               )}
+
+              {cameraError && (
+                <div style={{
+                  position: 'absolute', inset: 0,
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  background: '#020617', zIndex: 1, color: '#fff', gap: 12
+                }}>
+                  <div style={{
+                    width: 64, height: 64, borderRadius: '50%',
+                    background: 'rgba(239,68,68,0.1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <AlertTriangle size={32} color="#ef4444" />
+                  </div>
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 600 }}>Camera unavailable</h3>
+                  <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Please allow camera access to continue.</p>
+                </div>
+              )}
+
               
               <video
                 ref={videoRef}
@@ -1024,109 +1040,10 @@ export default function MockInterviewPage({
                 </div>
               )}
 
-              {/* Subtitles / Real-time speech transcription preview for candidate */}
-              {isMicActive && candidateSpeechText && (
-                <div style={{
-                  position: 'absolute',
-                  bottom: 24,
-                  left: '5%',
-                  right: '5%',
-                  padding: '10px 16px',
-                  background: 'rgba(15, 23, 42, 0.85)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: 12,
-                  color: '#e2e8f0',
-                  fontSize: '0.85rem',
-                  textAlign: 'center',
-                  backdropFilter: 'blur(8px)',
-                  boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-                  zIndex: 2
-                }}>
-                  <span style={{ color: '#a855f7', fontWeight: 600 }}>Spoken:</span> "{candidateSpeechText}"
-                </div>
-              )}
+              {/* Subtitles removed based on user request */}
             </div>
           </div>
         </div>
-
-        {/* ── Transcript Panel ── */}
-        <div className="glass" style={{
-          border: '1px solid rgba(255, 255, 255, 0.05)',
-          borderRadius: 24,
-          padding: '24px 32px',
-          background: 'rgba(10, 14, 35, 0.75)',
-          backdropFilter: 'blur(16px)',
-          boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
-          marginBottom: 24
-        }}>
-          {/* Header */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-            paddingBottom: 16,
-            marginBottom: 16
-          }}>
-            <span style={{ color: '#fff', fontWeight: 700, fontSize: '1.05rem', letterSpacing: '-0.01em' }}>
-              AI Interviewer Transcript
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              {ttsStatus && (
-                <span style={{ color: '#f87171', fontSize: '0.8rem', fontWeight: 600 }}>
-                  ⚠️ {ttsStatus}
-                </span>
-              )}
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                color: '#22c55e',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                letterSpacing: '0.05em'
-              }}>
-                <span style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: '#22c55e',
-                  boxShadow: '0 0 8px #22c55e'
-                }} />
-                LIVE
-              </span>
-            </div>
-          </div>
-
-          {/* Transcript Content Area */}
-          <div style={{
-            minHeight: 80,
-            fontFamily: 'Courier New, Courier, monospace',
-            color: '#fff',
-            fontSize: '1rem',
-            lineHeight: 1.6,
-            whiteSpace: 'pre-wrap'
-          }}>
-            <span style={{ color: '#a855f7', fontWeight: 700 }}>AI Interviewer: </span>
-            {typedText}
-            <span style={{
-              display: 'inline-block',
-              width: 8,
-              height: 16,
-              background: '#a855f7',
-              marginLeft: 4,
-              animation: 'blink 1s step-end infinite'
-            }} />
-            <style>{`
-              @keyframes blink {
-                from, to { background-color: transparent }
-                50% { background-color: #a855f7 }
-              }
-            `}</style>
-          </div>
-        </div>
-
       </div>
-    </>
   );
 }

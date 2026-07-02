@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Play, CheckCircle, Video, Camera } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-export default function InterviewBriefingPage({ sessionConfig, resumeData, onBegin }) {
+export default function InterviewBriefingPage({ sessionConfig, resumeData, onBegin, onCameraReady }) {
   const [cameraReady, setCameraReady] = useState(false);
   const [testingCamera, setTestingCamera] = useState(false);
 
@@ -12,10 +12,13 @@ export default function InterviewBriefingPage({ sessionConfig, resumeData, onBeg
     setTestingCamera(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      // We just need permission, so stop the stream immediately
-      stream.getTracks().forEach(track => track.stop());
+      console.log("Camera permission granted");
+      console.log("MediaStream created");
+      if (onCameraReady) onCameraReady(stream);
       setCameraReady(true);
+      console.log("Camera ready");
     } catch (err) {
+      console.error("Camera init failed:", err);
       alert("Camera access denied or no camera found. You must allow camera access to begin the proctored interview.");
       setCameraReady(false);
     } finally {

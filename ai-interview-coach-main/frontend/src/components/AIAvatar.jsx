@@ -6,7 +6,6 @@ import {
   Environment,
   ContactShadows,
   Html,
-  OrbitControls,
 } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -90,6 +89,12 @@ function InterviewerAvatar({ url, isSpeaking, isListening, onModelLoad, modelHei
     spine: null,
     leftShoulder: null,
     rightShoulder: null,
+    leftArm: null,
+    rightArm: null,
+    leftForearm: null,
+    rightForearm: null,
+    leftHand: null,
+    rightHand: null,
   });
 
   // Morph-target mesh refs (lip sync / blinking)
@@ -122,6 +127,12 @@ function InterviewerAvatar({ url, isSpeaking, isListening, onModelLoad, modelHei
         if (nl.includes('neck')) bones.current.neck = child;
         if (nl.includes('leftshoulder') || nl === 'left_shoulder') bones.current.leftShoulder = child;
         if (nl.includes('rightshoulder') || nl === 'right_shoulder') bones.current.rightShoulder = child;
+        if (nl.includes('leftarm') || nl === 'left_arm') bones.current.leftArm = child;
+        if (nl.includes('rightarm') || nl === 'right_arm') bones.current.rightArm = child;
+        if (nl.includes('leftforearm') || nl === 'left_forearm') bones.current.leftForearm = child;
+        if (nl.includes('rightforearm') || nl === 'right_forearm') bones.current.rightForearm = child;
+        if (nl.includes('lefthand') || nl === 'left_hand') bones.current.leftHand = child;
+        if (nl.includes('righthand') || nl === 'right_hand') bones.current.rightHand = child;
         if ((nl.includes('spine') || nl.includes('chest')) && !bones.current.spine) {
           bones.current.spine = child;
         }
@@ -241,58 +252,103 @@ function InterviewerAvatar({ url, isSpeaking, isListening, onModelLoad, modelHei
   }, [actions]);
 
   // ─── useFrame procedural animations ────────────────────────────────────────
+  const gestureTimer = useRef(0);
+  const currentGesture = useRef({ leftArmZ: 0, rightArmZ: 0, leftArmX: 0, rightArmX: 0 });
+
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
     const currentHeight = modelHeight || 1.8;
 
     // Breathing — gentle Y oscillation based on model scale height
     if (group.current) {
-      group.current.position.y = Math.sin(t * 1.4) * 0.006 * currentHeight;
+      const breathTarget = Math.sin(t * (isSpeaking ? 1.6 : 1.2)) * 0.003 * currentHeight;
+      group.current.position.y = THREE.MathUtils.lerp(group.current.position.y, breathTarget, 0.1);
     }
 
-    // Spine lean (leaning forward when listening)
+    // Spine lean
     if (bones.current.spine) {
-      const target = isListening ? 0.07 : Math.sin(t * 1.4) * 0.008;
-      bones.current.spine.rotation.x = THREE.MathUtils.lerp(
-        bones.current.spine.rotation.x,
-        target,
-        0.04
-      );
+      let targetX = Math.sin(t * 1.2) * 0.003;
+      if (isListening) targetX = 0.04; // Slight forward lean
+      if (aiState === 'Analyzing') targetX = 0.02;
+      bones.current.spine.rotation.x = THREE.MathUtils.lerp(bones.current.spine.rotation.x, targetX, 0.03);
     }
 
     // Shoulders
     if (bones.current.leftShoulder && bones.current.rightShoulder) {
-      const breathe = Math.sin(t * 1.4) * 0.007;
-      const talk = isSpeaking ? Math.sin(t * 4.5) * 0.012 : 0;
-      bones.current.leftShoulder.rotation.z = breathe + talk;
-      bones.current.rightShoulder.rotation.z = -(breathe + talk);
+      const breathe = Math.sin(t * 1.2) * 0.004;
+      const talk = isSpeaking ? Math.sin(t * 4.0) * 0.008 : 0;
+      bones.current.leftShoulder.rotation.z = THREE.MathUtils.lerp(bones.current.leftShoulder.rotation.z, breathe + talk, 0.1);
+      bones.current.rightShoulder.rotation.z = THREE.MathUtils.lerp(bones.current.rightShoulder.rotation.z, -(breathe + talk), 0.1);
+    }
+
+    // Arms and Gestures
+    if (isSpeaking) {
+      gestureTimer.current -= delta;
+      if (gestureTimer.current <= 0) {
+        gestureTimer.current = 1.5 + Math.random() * 2.5; // New subtle gesture every 1.5 - 4s
+        currentGesture.current = {
+          leftArmZ: (Math.random() - 0.5) * 0.12,
+          rightArmZ: (Math.random() - 0.5) * 0.12,
+          leftArmX: (Math.random() - 0.5) * 0.08,
+          rightArmX: (Math.random() - 0.5) * 0.08,
+        };
+      }
+    } else {
+      // Rest hands when not speaking
+      currentGesture.current = { leftArmZ: 0, rightArmZ: 0, leftArmX: 0, rightArmX: 0 };
+    }
+
+    // Apply smooth gesture blending to arms
+    if (bones.current.leftArm) {
+      bones.current.leftArm.rotation.z = THREE.MathUtils.lerp(bones.current.leftArm.rotation.z, currentGesture.current.leftArmZ, 0.03);
+      bones.current.leftArm.rotation.x = THREE.MathUtils.lerp(bones.current.leftArm.rotation.x, currentGesture.current.leftArmX, 0.03);
+    }
+    if (bones.current.rightArm) {
+      bones.current.rightArm.rotation.z = THREE.MathUtils.lerp(bones.current.rightArm.rotation.z, currentGesture.current.rightArmZ, 0.03);
+      bones.current.rightArm.rotation.x = THREE.MathUtils.lerp(bones.current.rightArm.rotation.x, currentGesture.current.rightArmX, 0.03);
+    }
+    
+    // Forearms and hands subtle variations
+    if (isSpeaking) {
+      if (bones.current.leftForearm) bones.current.leftForearm.rotation.x = THREE.MathUtils.lerp(bones.current.leftForearm.rotation.x, Math.sin(t * 1.8) * 0.03, 0.05);
+      if (bones.current.rightForearm) bones.current.rightForearm.rotation.x = THREE.MathUtils.lerp(bones.current.rightForearm.rotation.x, Math.cos(t * 2.1) * 0.03, 0.05);
+      if (bones.current.leftHand) bones.current.leftHand.rotation.y = THREE.MathUtils.lerp(bones.current.leftHand.rotation.y, Math.sin(t * 2.5) * 0.04, 0.05);
+      if (bones.current.rightHand) bones.current.rightHand.rotation.y = THREE.MathUtils.lerp(bones.current.rightHand.rotation.y, Math.cos(t * 2.6) * 0.04, 0.05);
+    } else {
+      if (bones.current.leftForearm) bones.current.leftForearm.rotation.x = THREE.MathUtils.lerp(bones.current.leftForearm.rotation.x, 0, 0.05);
+      if (bones.current.rightForearm) bones.current.rightForearm.rotation.x = THREE.MathUtils.lerp(bones.current.rightForearm.rotation.x, 0, 0.05);
+      if (bones.current.leftHand) bones.current.leftHand.rotation.y = THREE.MathUtils.lerp(bones.current.leftHand.rotation.y, 0, 0.05);
+      if (bones.current.rightHand) bones.current.rightHand.rotation.y = THREE.MathUtils.lerp(bones.current.rightHand.rotation.y, 0, 0.05);
+    }
+
+    // Neck
+    if (bones.current.neck) {
+      bones.current.neck.rotation.x = THREE.MathUtils.lerp(bones.current.neck.rotation.x, Math.sin(t * 0.7) * 0.008, 0.05);
     }
 
     // Head
     if (bones.current.head) {
+      let hX = Math.sin(t * 1.1) * 0.008;
+      let hY = Math.cos(t * 0.6) * 0.012;
+      let hZ = 0;
+
       if (isSpeaking) {
-        bones.current.head.rotation.x = Math.sin(t * 3.8) * 0.022;
-        bones.current.head.rotation.y = Math.cos(t * 2.3) * 0.032;
-        bones.current.head.rotation.z = Math.sin(t * 1.7) * 0.012;
+        hX = Math.sin(t * 3.1) * 0.012;
+        hY = Math.cos(t * 1.9) * 0.018;
+        hZ = Math.sin(t * 1.4) * 0.006;
       } else if (isListening) {
         const nodCycle = Math.sin(t * 0.45);
-        const targetX = nodCycle > 0.35 ? 0.055 + Math.sin(t * 7) * 0.04 : 0.035;
-        bones.current.head.rotation.x = THREE.MathUtils.lerp(
-          bones.current.head.rotation.x, targetX, 0.1
-        );
-        bones.current.head.rotation.y = Math.sin(t * 0.3) * 0.018;
-        bones.current.head.rotation.z = 0;
+        hX = nodCycle > 0.4 ? 0.03 + Math.sin(t * 6) * 0.02 : 0.01; // Occasional small nods
+        hY = Math.sin(t * 0.25) * 0.008; // Eye contact
       } else if (aiState === 'Analyzing') {
-        // Thinking / analyzing: head tilted slightly and look slightly down-sideways
-        bones.current.head.rotation.x = Math.sin(t * 0.8) * 0.01 + 0.04;
-        bones.current.head.rotation.y = Math.cos(t * 0.5) * 0.015 - 0.02;
-        bones.current.head.rotation.z = Math.sin(t * 0.5) * 0.01;
-      } else {
-        // Idle
-        bones.current.head.rotation.x = Math.sin(t * 1.1) * 0.013;
-        bones.current.head.rotation.y = Math.cos(t * 0.55) * 0.018;
-        bones.current.head.rotation.z = 0;
+        hX = Math.sin(t * 0.8) * 0.008 + 0.05; // Look downward
+        hY = Math.cos(t * 0.5) * 0.012 - 0.015;
+        hZ = Math.sin(t * 0.5) * 0.008;
       }
+
+      bones.current.head.rotation.x = THREE.MathUtils.lerp(bones.current.head.rotation.x, hX, 0.06);
+      bones.current.head.rotation.y = THREE.MathUtils.lerp(bones.current.head.rotation.y, hY, 0.06);
+      bones.current.head.rotation.z = THREE.MathUtils.lerp(bones.current.head.rotation.z, hZ, 0.06);
     }
 
     // Blink (morph target)
@@ -369,39 +425,39 @@ function InterviewerAvatar({ url, isSpeaking, isListening, onModelLoad, modelHei
 // ─── Proportional Office Desk ──────────────────────────────────────────────────
 function InterviewDesk({ scaleFactor }) {
   return (
-    <group position={[0, 0, 0.53 * 1.8 * scaleFactor]} scale={scaleFactor}>
+    <group position={[0, -0.1, 0.4 * 1.8 * scaleFactor]} scale={scaleFactor}>
       {/* Desk top slab */}
-      <mesh position={[0, 0.55, 0]} castShadow receiveShadow>
-        <boxGeometry args={[4.5, 0.035, 1.3]} />
+      <mesh position={[0, 0.45, 0]} castShadow receiveShadow>
+        <boxGeometry args={[3.2, 0.035, 0.8]} />
         <meshStandardMaterial color="#1a202c" roughness={0.15} metalness={0.4} />
       </mesh>
 
       {/* modesty front panel */}
-      <mesh position={[0, 0.27, 0.62]} castShadow receiveShadow>
-        <boxGeometry args={[4.5, 0.56, 0.035]} />
+      <mesh position={[0, 0.22, 0.38]} castShadow receiveShadow>
+        <boxGeometry args={[3.2, 0.45, 0.035]} />
         <meshStandardMaterial color="#0b0f19" roughness={0.7} />
       </mesh>
 
       {/* Left leg */}
-      <mesh position={[-2.1, 0.28, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.07, 0.56, 0.9]} />
+      <mesh position={[-1.5, 0.22, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.07, 0.45, 0.6]} />
         <meshStandardMaterial color="#0b0f19" roughness={0.5} />
       </mesh>
 
       {/* Right leg */}
-      <mesh position={[2.1, 0.28, 0]} castShadow receiveShadow>
-        <boxGeometry args={[0.07, 0.56, 0.9]} />
+      <mesh position={[1.5, 0.22, 0]} castShadow receiveShadow>
+        <boxGeometry args={[0.07, 0.45, 0.6]} />
         <meshStandardMaterial color="#0b0f19" roughness={0.5} />
       </mesh>
 
       {/* Purple accent strip */}
-      <mesh position={[0, 0.572, 0.64]}>
-        <boxGeometry args={[4.5, 0.008, 0.008]} />
+      <mesh position={[0, 0.468, 0.4]}>
+        <boxGeometry args={[3.2, 0.008, 0.008]} />
         <meshBasicMaterial color="#a855f7" />
       </mesh>
 
       {/* Laptop — scaled down 35% (width 28cm vs 42cm), rotated 180 on Y so back faces candidate */}
-      <group position={[0.25, 0.568, -0.05]} rotation={[0, Math.PI, 0]}>
+      <group position={[0.15, 0.468, -0.05]} rotation={[0, Math.PI, 0]}>
         {/* Base */}
         <mesh castShadow receiveShadow>
           <boxGeometry args={[0.28, 0.008, 0.20]} />
@@ -437,13 +493,13 @@ function InterviewDesk({ scaleFactor }) {
       </group>
 
       {/* Notepad */}
-      <mesh position={[-0.8, 0.57, -0.05]} rotation={[0, 0.15, 0]} castShadow receiveShadow>
+      <mesh position={[-0.6, 0.47, -0.05]} rotation={[0, 0.15, 0]} castShadow receiveShadow>
         <boxGeometry args={[0.28, 0.008, 0.20]} />
         <meshStandardMaterial color="#f8fafc" roughness={0.9} />
       </mesh>
 
       {/* Pen */}
-      <mesh position={[-0.64, 0.576, -0.04]} rotation={[0, -0.4, 0]} castShadow receiveShadow>
+      <mesh position={[-0.48, 0.476, -0.04]} rotation={[0, -0.4, 0]} castShadow receiveShadow>
         <cylinderGeometry args={[0.005, 0.005, 0.22, 8]} />
         <meshStandardMaterial color="#3b4a6b" metalness={0.8} roughness={0.2} />
       </mesh>
@@ -485,11 +541,19 @@ function CameraRig({ modelHeight }) {
 
   useEffect(() => {
     if (modelHeight) {
-      // Dynamic camera placement targeting upper torso & centering the head
-      const cameraY = 0.72 * modelHeight;
-      const cameraZ = 3.3 * modelHeight;
-      camera.position.set(0, cameraY, cameraZ);
-      camera.lookAt(0, 0.72 * modelHeight, 0);
+      // Frame the avatar to occupy 75-80% of the screen.
+      // Upper torso and head (from 35% height to 105% height) should be visible.
+      const targetMinY = 0.35 * modelHeight;
+      const targetMaxY = 1.05 * modelHeight;
+      const visibleHeight = targetMaxY - targetMinY;
+      const targetCenterY = (targetMinY + targetMaxY) / 2;
+      
+      // Calculate distance based on FOV and desired visible height
+      const fovRad = (camera.fov * Math.PI) / 180;
+      const distance = (visibleHeight / 2) / Math.tan(fovRad / 2);
+
+      camera.position.set(0, targetCenterY, distance);
+      camera.lookAt(0, targetCenterY, 0);
       camera.updateProjectionMatrix();
     }
   }, [modelHeight, camera]);
@@ -498,7 +562,7 @@ function CameraRig({ modelHeight }) {
 }
 
 // ─── Main Export ──────────────────────────────────────────────────────────────
-export default function AIAvatar({ aiState: externalAiState }) {
+export default function AIAvatar({ aiState: externalAiState, onLoad }) {
   const [localAiState, setLocalAiState] = useState('Idle');
   const aiState = externalAiState || localAiState;
 
@@ -552,7 +616,10 @@ export default function AIAvatar({ aiState: externalAiState }) {
       }
       return config;
     });
-  }, []);
+    if (onLoad) {
+      onLoad();
+    }
+  }, [onLoad]);
 
   const scaleFactor = modelConfig.height / 1.8;
 
@@ -600,7 +667,7 @@ export default function AIAvatar({ aiState: externalAiState }) {
 
       <CanvasErrorBoundary>
         <Canvas
-          camera={{ position: [0, 1.4, 4], fov: 35 }}
+          camera={{ position: [0, 1.35, 2.0], fov: 35 }}
           shadows
           gl={{ antialias: true, alpha: true }}
           style={{ background: 'transparent' }}
@@ -664,16 +731,17 @@ export default function AIAvatar({ aiState: externalAiState }) {
               distance={3.5 * scaleFactor}
             />
           )}
+          {aiState === 'Analyzing' && (
+            <pointLight
+              position={[0, 0.9 * modelConfig.height, 1.5 * scaleFactor]}
+              intensity={1.4}
+              color="#3b82f6"
+              distance={3.5 * scaleFactor}
+            />
+          )}
 
           <Environment preset="studio" />
-
-          {/* Fixed camera controls - zoom, rotate, and pan disabled */}
-          <OrbitControls
-            enableZoom={false}
-            enableRotate={false}
-            enablePan={false}
-            target={[0, 1.1, 0]}
-          />
+          <CameraRig modelHeight={modelConfig.height} />
 
           <Suspense
             fallback={

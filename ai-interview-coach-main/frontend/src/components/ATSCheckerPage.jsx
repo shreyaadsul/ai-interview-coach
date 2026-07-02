@@ -84,15 +84,15 @@ export default function ATSCheckerPage({ setResumeData }) {
       {/* PAGE TITLE */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+          <h1 className="text-3xl font-extrabold text-textPrimary tracking-tight">
             ATS Checker
           </h1>
-          <p className="text-gray-400 text-sm mt-1">Optimize your resume for applicant tracking systems.</p>
+          <p className="text-textSecondary text-sm mt-1">Optimize your resume for applicant tracking systems.</p>
         </div>
         {isUploaded && (
           <button 
             onClick={handleReset}
-            className="flex items-center gap-2 border border-primary/40 hover:border-primary px-4 py-2 rounded-xl text-gray-300 hover:text-white text-sm font-semibold transition-all duration-300 bg-white/5 hover:bg-primary/10 self-start sm:self-auto"
+            className="flex items-center gap-2 border border-gray-200 hover:border-primary/30 px-4 py-2 rounded-xl text-textSecondary hover:text-textPrimary text-sm font-semibold transition-all duration-200 bg-white hover:bg-gray-50 self-start sm:self-auto shadow-sm"
           >
             <RefreshCw className="w-4 h-4" />
             Scan Another Resume
@@ -101,24 +101,24 @@ export default function ATSCheckerPage({ setResumeData }) {
       </div>
 
       {isAnalyzing && (
-        <div className="bg-[#111827] border border-[#1F2937] p-12 rounded-2xl flex flex-col items-center justify-center space-y-4 shadow-xl">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#7C3AED]" />
-          <p className="text-white font-semibold text-base">Analyzing "{fileName}"...</p>
-          <p className="text-gray-400 text-sm">Parsing content structure and keywords...</p>
+        <div className="bg-white border border-[#E5E7EB] p-12 rounded-3xl flex flex-col items-center justify-center space-y-4 shadow-sm">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+          <p className="text-textPrimary font-bold text-base">Analyzing "{fileName}"...</p>
+          <p className="text-textSecondary text-sm">Parsing content structure and keywords...</p>
         </div>
       )}
 
       {!isUploaded && !isAnalyzing && (
         <div className="max-w-2xl mx-auto space-y-6">
-          <div className="bg-[#111827] border border-[#1F2937] p-6 rounded-2xl shadow-xl space-y-4">
-            <h3 className="text-lg font-semibold text-white">Target Job Role</h3>
-            <p className="text-gray-400 text-sm">What role are you applying for? This helps us suggest accurate missing keywords.</p>
+          <div className="bg-white border border-[#E5E7EB] p-6 rounded-3xl shadow-sm space-y-4">
+            <h3 className="text-base font-bold text-textPrimary">Target Job Role</h3>
+            <p className="text-textSecondary text-xs">What role are you applying for? This helps us suggest accurate missing keywords.</p>
             <input
               type="text"
               value={targetRole}
               onChange={(e) => setTargetRole(e.target.value)}
               placeholder="e.g. Senior Frontend Developer, Data Scientist..."
-              className="w-full bg-[#1F2937] border border-[#374151] rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#7C3AED] focus:ring-1 focus:ring-[#7C3AED] transition-colors"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-textPrimary placeholder-gray-400 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-colors"
             />
           </div>
           <ResumeUploader onUploadSuccess={handleUploadSuccess} />
@@ -128,12 +128,12 @@ export default function ATSCheckerPage({ setResumeData }) {
       {isUploaded && !isAnalyzing && (
         <div className="space-y-6 animate-fadeIn">
           {/* File summary bar */}
-          <div className="bg-[#111827] border border-[#1F2937] px-6 py-4 rounded-2xl flex items-center justify-between shadow-md">
+          <div className="bg-white border border-[#E5E7EB] px-6 py-4 rounded-3xl flex items-center justify-between shadow-sm">
             <div className="flex items-center gap-3">
-              <FileText className="text-[#7C3AED] w-5 h-5" />
-              <span className="text-white font-medium text-sm">{fileName}</span>
+              <FileText className="text-primary w-5 h-5" />
+              <span className="text-textPrimary font-bold text-sm">{fileName}</span>
             </div>
-            <span className="text-xs text-gray-400">Scan Complete</span>
+            <span className="text-xs text-textSecondary">Scan Complete</span>
           </div>
 
           {/* SECTION 2: ATS Score Card */}
@@ -141,15 +141,19 @@ export default function ATSCheckerPage({ setResumeData }) {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* SECTION 3: Missing Keywords (Column Span 2) */}
-            <div className="lg:col-span-2 bg-[#111827] border border-[#1F2937] p-6 rounded-2xl space-y-4 shadow-xl">
-              <h3 className="text-lg font-semibold text-white">Missing Keywords</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
+            <div className="lg:col-span-2 bg-white border border-[#E5E7EB] p-6 rounded-3xl space-y-4 shadow-sm">
+              <h3 className="text-base font-bold text-textPrimary">Missing Keywords</h3>
+              <p className="text-textSecondary text-xs leading-relaxed">
                 We couldn't detect these critical industry terms in your resume. Consider incorporating them to improve match rates.
               </p>
-              <div className="flex flex-wrap gap-2.5 pt-2">
-                {analysisResult.missingKeywords.map((kw) => (
-                  <KeywordBadge key={kw} keyword={kw} />
-                ))}
+              <div className="flex flex-wrap gap-2 pt-2">
+                {analysisResult.missingKeywords.length > 0 ? (
+                  analysisResult.missingKeywords.map((kw) => (
+                    <KeywordBadge key={kw} keyword={kw} />
+                  ))
+                ) : (
+                  <span className="text-textSecondary text-xs">No missing keywords detected! Excellent profile match.</span>
+                )}
               </div>
             </div>
 

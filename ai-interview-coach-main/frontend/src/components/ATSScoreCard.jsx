@@ -1,17 +1,30 @@
 import React from 'react';
 
-export default function ATSScoreCard({ score = 82 }) {
+export default function ATSScoreCard({ score = 0 }) {
   // SVG circle calculations
   const radius = 50;
-  const strokeWidth = 10;
+  const strokeWidth = 8;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (circumference * score) / 100;
 
+  const getScoreColor = (s) => {
+    if (s >= 80) return "#22C55E";
+    if (s >= 60) return "#F59E0B";
+    return "#EF4444";
+  };
+
+  const getScoreFeedback = (s) => {
+    if (s >= 90) return "Excellent resume match! Your profile is extremely compatible with applicant tracking systems.";
+    if (s >= 75) return "Good compatibility. A few simple adjustments will make your resume highly optimized.";
+    if (s >= 60) return "Fair compatibility. Consider adding missing keywords and polishing layout structures.";
+    return "Action required. Your resume needs keyword optimization to successfully pass automatic screening filters.";
+  };
+
   return (
-    <div className="bg-[#111827] border border-[#1F2937] p-6 rounded-2xl flex flex-col sm:flex-row items-center gap-6 shadow-xl">
+    <div className="bg-white border border-[#E5E7EB] p-6 rounded-3xl flex flex-col sm:flex-row items-center gap-6 shadow-sm">
       {/* Left Column: Title & Circular Progress Ring */}
-      <div className="flex flex-col items-center gap-4">
-        <h4 className="text-sm font-semibold text-gray-300 self-start sm:self-auto">ATS Score</h4>
+      <div className="flex flex-col items-center gap-4 flex-shrink-0">
+        <h4 className="text-xs font-bold text-textSecondary uppercase tracking-wider self-start sm:self-auto">ATS Match Score</h4>
         
         <div className="relative w-32 h-32 flex items-center justify-center">
           {/* Progress Ring */}
@@ -21,7 +34,7 @@ export default function ATSScoreCard({ score = 82 }) {
               cx="64"
               cy="64"
               r={radius}
-              stroke="#1F2937"
+              stroke="#F3F4F6"
               strokeWidth={strokeWidth}
               fill="transparent"
             />
@@ -30,7 +43,7 @@ export default function ATSScoreCard({ score = 82 }) {
               cx="64"
               cy="64"
               r={radius}
-              stroke="#22C55E"
+              stroke={getScoreColor(score)}
               strokeWidth={strokeWidth}
               fill="transparent"
               strokeDasharray={circumference}
@@ -42,16 +55,16 @@ export default function ATSScoreCard({ score = 82 }) {
           
           {/* Central Score Text */}
           <div className="absolute flex flex-col items-center justify-center">
-            <span className="text-2xl font-bold text-white leading-none">{score}</span>
-            <span className="text-xs text-gray-500 font-medium mt-0.5">/100</span>
+            <span className="text-2xl font-extrabold text-textPrimary leading-none">{score}</span>
+            <span className="text-[10px] text-textSecondary font-bold uppercase mt-0.5">/100</span>
           </div>
         </div>
       </div>
-
+ 
       {/* Right Column: Feedback Summary */}
-      <div className="flex-1 text-center sm:text-left">
-        <p className="text-gray-300 text-sm sm:text-base font-medium leading-relaxed">
-          This resume is ATS-friendly, but there is still room for improvement.
+      <div className="flex-grow text-center sm:text-left">
+        <p className="text-textSecondary text-sm sm:text-base font-semibold leading-relaxed">
+          {getScoreFeedback(score)}
         </p>
       </div>
     </div>

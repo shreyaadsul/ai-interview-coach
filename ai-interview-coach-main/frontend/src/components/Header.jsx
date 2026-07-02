@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, Plus, Edit2, Check, CheckCircle2, AlertCircle, User, Briefcase, GraduationCap, FileText, Settings, LogOut } from 'lucide-react';
+import { Bell, Plus, Edit2, Check, CheckCircle2, AlertCircle, User, Briefcase, GraduationCap, FileText, Settings, LogOut, Search } from 'lucide-react';
 
 export default function Header({ userName = 'Shreya Adsul', avatar, onNewInterview, onNameChange, onLogout, currentPage, resumeData = {}, setCurrentPage }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -49,71 +49,52 @@ export default function Header({ userName = 'Shreya Adsul', avatar, onNewIntervi
   };
 
   return (
-    <header className="flex items-center justify-between py-6 px-8 ml-64 bg-navy-900/50 backdrop-blur-md sticky top-0 z-40 border-b border-white/5">
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          {isEditing ? (
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold text-white">Welcome back,</span>
-              <input
-                type="text"
-                value={tempName}
-                onChange={(e) => setTempName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-                className="bg-navy-800 border border-primary/50 rounded-lg px-2 py-0.5 text-xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-primary/50 w-32"
-                autoFocus
-              />
-              <button onClick={handleSave} className="p-1 rounded-md bg-success/20 text-success hover:bg-success/30 transition-colors">
-                <Check className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 group cursor-pointer" onClick={() => setIsEditing(true)} title="Click to edit name">
-              <h1 className="text-2xl font-bold text-white">Welcome back, {firstName}! 👋</h1>
-              <button className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-white/10 text-gray-400 transition-all">
-                <Edit2 className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-        </div>
-        <p className="text-sm text-gray-400">Here's your interview performance overview.</p>
+    <header className="flex items-center justify-between py-2.5 px-8 ml-[260px] bg-white sticky top-0 z-40 border-b border-[#E5E7EB] min-h-[56px] h-[56px]">
+      {/* Left side: Search bar (No oversized welcome banner) */}
+      <div className="relative w-[420px]">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-textSecondary/60" />
+        <input 
+          type="text" 
+          placeholder="Search dashboard, actions, or history..."
+          className="w-full pl-9 pr-4 py-2 bg-gray-50/50 border border-[#E5E7EB] focus:border-primary/50 focus:ring-1 focus:ring-primary/20 rounded-xl text-xs text-textPrimary focus:outline-none placeholder-gray-400 font-medium"
+        />
       </div>
 
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-4">
         
         {/* Notifications Dropdown */}
         <div className="relative" ref={notifRef}>
           <button 
             onClick={() => setShowNotifications(!showNotifications)}
-            className={`relative p-2 rounded-full transition-colors ${showNotifications ? 'bg-white/10 text-white' : 'hover:bg-white/10 text-gray-300'}`}
+            className={`relative p-2 rounded-full transition-colors ${showNotifications ? 'bg-gray-100 text-textPrimary' : 'hover:bg-gray-50 text-textSecondary'}`}
           >
             <Bell className="w-5 h-5" />
-            {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full ring-2 ring-navy-900" />}
+            {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-primary rounded-full ring-2 ring-white" />}
           </button>
 
           {showNotifications && (
-            <div className="absolute right-0 mt-3 w-80 bg-navy-800 border border-white/10 rounded-2xl shadow-2xl shadow-black/50 z-50 overflow-hidden animate-fadeIn">
-              <div className="p-4 border-b border-white/10 bg-white/5 flex justify-between items-center">
-                <h3 className="text-sm font-bold text-white">Notifications</h3>
-                {unreadCount > 0 && <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full font-semibold">{unreadCount} New</span>}
+            <div className="absolute right-0 mt-3 w-80 bg-white border border-[#E5E7EB] rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.08)] z-50 overflow-hidden animate-fadeIn">
+              <div className="p-4 border-b border-[#E5E7EB] bg-gray-50 flex justify-between items-center">
+                <h3 className="text-sm font-bold text-textPrimary">Notifications</h3>
+                {unreadCount > 0 && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold">{unreadCount} New</span>}
               </div>
               <div className="max-h-80 overflow-y-auto">
                 {notifications.map(notif => (
-                  <div key={notif.id} className={`p-4 border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer flex gap-3 ${!notif.read ? 'bg-white/5' : 'opacity-70'}`}>
+                  <div key={notif.id} className={`p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer flex gap-3 ${!notif.read ? 'bg-primary/5' : 'opacity-70'}`}>
                     <div className="mt-0.5 flex-shrink-0">
                       {notif.type === 'success' && <CheckCircle2 className="w-4 h-4 text-success" />}
                       {notif.type === 'warning' && <AlertCircle className="w-4 h-4 text-warning" />}
-                      {notif.type === 'info' && <div className="w-4 h-4 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-bold">i</div>}
+                      {notif.type === 'info' && <div className="w-4 h-4 rounded-full bg-primary/15 text-primary flex items-center justify-center text-[10px] font-bold">i</div>}
                     </div>
                     <div>
-                      <p className={`text-sm leading-snug ${!notif.read ? 'text-white font-medium' : 'text-gray-300'}`}>{notif.text}</p>
-                      <p className="text-xs text-gray-500 mt-1">{notif.time}</p>
+                      <p className={`text-sm leading-snug ${!notif.read ? 'text-textPrimary font-medium' : 'text-textSecondary'}`}>{notif.text}</p>
+                      <p className="text-xs text-textSecondary mt-1">{notif.time}</p>
                     </div>
                   </div>
                 ))}
               </div>
               {unreadCount > 0 && (
-                <div className="p-3 text-center border-t border-white/10 bg-white/5 hover:bg-white/10 cursor-pointer transition-colors" onClick={handleMarkAllRead}>
+                <div className="p-3 text-center border-t border-[#E5E7EB] bg-white hover:bg-gray-50 cursor-pointer transition-colors" onClick={handleMarkAllRead}>
                   <span className="text-xs font-semibold text-primary">Mark all as read</span>
                 </div>
               )}
@@ -122,81 +103,87 @@ export default function Header({ userName = 'Shreya Adsul', avatar, onNewIntervi
         </div>
         
         {/* Profile Dropdown */}
-        <div className="relative border-l border-white/10 pl-6 flex items-center gap-3" ref={profileRef}>
-          {avatar ? (
-            <div 
-              className="w-10 h-10 rounded-full bg-gradient-to-tr from-primary/20 to-secondary/20 border border-white/10 flex items-center justify-center text-xl cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all select-none"
-              onClick={() => setShowProfile(!showProfile)}
-            >
-              {avatar}
-            </div>
-          ) : (
-            <img 
-              src={`https://api.dicebear.com/7.x/notionists/svg?seed=${firstName}&backgroundColor=7C3AED`} 
-              alt="User Avatar" 
-              className="w-10 h-10 rounded-full border border-white/10 cursor-pointer hover:ring-2 hover:ring-primary/50 transition-all"
-              onClick={() => setShowProfile(!showProfile)}
-            />
-          )}
+        <div className="relative border-l border-[#E5E7EB] pl-4 flex items-center gap-3" ref={profileRef}>
+          <div 
+            onClick={() => setShowProfile(!showProfile)}
+            className="flex items-center gap-2 cursor-pointer select-none group"
+          >
+            {avatar ? (
+              <div 
+                className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-lg hover:ring-2 hover:ring-primary/30 transition-all select-none"
+              >
+                {avatar}
+              </div>
+            ) : (
+              <img 
+                src={`https://api.dicebear.com/7.x/notionists/svg?seed=${firstName}&backgroundColor=4F46E5`} 
+                alt="User Avatar" 
+                className="w-8 h-8 rounded-full border border-gray-200 hover:ring-2 hover:ring-primary/30 transition-all"
+              />
+            )}
+            <span className="text-xs font-bold text-textPrimary group-hover:text-primary transition-colors">
+              {userName}
+            </span>
+          </div>
           
           {showProfile && (
-            <div className="absolute right-0 top-14 w-72 bg-navy-800 border border-white/10 rounded-2xl shadow-2xl shadow-black/50 z-50 overflow-hidden animate-fadeIn">
+            <div className="absolute right-0 top-12 w-72 bg-white border border-[#E5E7EB] rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.08)] z-50 overflow-hidden animate-fadeIn">
               {/* Profile Header */}
-              <div className="p-5 border-b border-white/10 bg-gradient-to-br from-primary/10 to-transparent">
+              <div className="p-5 border-b border-[#E5E7EB] bg-gray-50">
                 <div className="flex items-center gap-4">
                   {avatar ? (
-                    <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-primary/20 to-secondary/20 border-2 border-primary/50 flex items-center justify-center text-3xl select-none">
+                    <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-2xl select-none">
                       {avatar}
                     </div>
                   ) : (
                     <img 
-                      src={`https://api.dicebear.com/7.x/notionists/svg?seed=${firstName}&backgroundColor=7C3AED`} 
+                      src={`https://api.dicebear.com/7.x/notionists/svg?seed=${firstName}&backgroundColor=4F46E5`} 
                       alt="User Avatar" 
-                      className="w-14 h-14 rounded-full border-2 border-primary/50"
+                      className="w-12 h-12 rounded-full border border-gray-200"
                     />
                   )}
                   <div>
-                    <h3 className="text-lg font-bold text-white leading-tight">{userName}</h3>
-                    <p className="text-sm text-gray-400 mt-0.5">{resumeData?.experience_level || 'Entry-Level'}</p>
+                    <h3 className="text-base font-bold text-textPrimary leading-tight">{userName}</h3>
+                    <p className="text-xs text-textSecondary mt-0.5">{resumeData?.experience_level || 'Entry-Level'}</p>
                   </div>
                 </div>
               </div>
               
               {/* Profile Details */}
-              <div className="p-2">
-                <div className="px-3 py-2 flex items-center gap-3 text-sm text-gray-300">
+              <div className="p-2 space-y-0.5">
+                <div className="px-3 py-2 flex items-center gap-3 text-sm text-textSecondary">
                   <GraduationCap className="w-4 h-4 text-gray-400" />
                   <span className="truncate" title={resumeData?.education || "No education added"}>
                     {resumeData?.education || "B.Sc. Computer Science"}
                   </span>
                 </div>
-                <div className="px-3 py-2 flex items-center gap-3 text-sm text-gray-300">
+                <div className="px-3 py-2 flex items-center gap-3 text-sm text-textSecondary">
                   <Briefcase className="w-4 h-4 text-gray-400" />
                   <span className="truncate" title={resumeData?.suggested_roles?.[0] || "Software Engineer"}>
                     Target: {resumeData?.suggested_roles?.[0] || "Software Engineer"}
                   </span>
                 </div>
-                <div className="px-3 py-2 flex items-center gap-3 text-sm text-gray-300">
+                <div className="px-3 py-2 flex items-center gap-3 text-sm text-textSecondary">
                   <FileText className="w-4 h-4 text-gray-400" />
-                  <span>Resume Score: <span className="font-bold text-white">{resumeData?.resume_score || 0}</span></span>
+                  <span>Resume Score: <span className="font-bold text-textPrimary">{resumeData?.resume_score || '--'}</span></span>
                 </div>
               </div>
 
               {/* Actions */}
-              <div className="border-t border-white/10 p-2">
+              <div className="border-t border-[#E5E7EB] p-2">
                 <button 
                   onClick={() => {
                     if (setCurrentPage) setCurrentPage('Settings');
                     setShowProfile(false);
                   }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-colors text-left"
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-textSecondary hover:text-textPrimary hover:bg-gray-50 transition-colors text-left"
                 >
                   <Settings className="w-4 h-4" />
                   Account Settings
                 </button>
                 <button 
                   onClick={onLogout}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[#EF4444] hover:bg-[#EF4444]/10 transition-colors text-left"
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-danger hover:bg-danger/10 transition-colors text-left"
                 >
                   <LogOut className="w-4 h-4" />
                   Sign Out
@@ -209,7 +196,7 @@ export default function Header({ userName = 'Shreya Adsul', avatar, onNewIntervi
         {currentPage === 'Resume Analysis' && (
           <button 
             onClick={onNewInterview}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-primary to-secondary text-white text-sm font-semibold hover:shadow-lg hover:shadow-primary/25 transition-all duration-300 transform hover:-translate-y-0.5 ml-3"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/95 hover:shadow-sm transition-all ml-2"
           >
             <Plus className="w-4 h-4" />
             New Interview

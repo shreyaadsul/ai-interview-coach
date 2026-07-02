@@ -13,18 +13,18 @@ export default function Sidebar({ currentPage, setCurrentPage }) {
   ];
 
   return (
-    <aside className="w-64 h-screen fixed left-0 top-0 glass border-r border-white/10 flex flex-col justify-between py-6 z-50">
+    <aside className="w-[260px] h-screen fixed left-0 top-0 bg-white border-r border-[#E5E7EB] flex flex-col justify-between py-6 z-50">
       <div>
         <div className="flex items-center gap-3 px-6 mb-10">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-secondary flex items-center justify-center shadow-lg shadow-primary/20">
-            <Bot className="text-white w-6 h-6" />
+          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-sm">
+            <Bot className="text-white w-5 h-5" />
           </div>
-          <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+          <h1 className="text-xl font-bold text-textPrimary tracking-tight">
             AI Coach
           </h1>
         </div>
 
-        <nav className="flex flex-col gap-2 px-4">
+        <nav className="flex flex-col gap-1 px-3">
           {navItems.map((item) => {
             const isActive = currentPage === item.name;
             return (
@@ -32,13 +32,13 @@ export default function Sidebar({ currentPage, setCurrentPage }) {
                 key={item.name}
                 onClick={() => setCurrentPage(item.name)}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-sm font-medium",
+                  "flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium",
                   isActive 
-                    ? "bg-white/10 text-white shadow-sm" 
-                    : "text-gray-400 hover:text-white hover:bg-white/5"
+                    ? "bg-[#4F46E5]/10 text-primary" 
+                    : "text-textSecondary hover:text-textPrimary hover:bg-gray-50"
                 )}
               >
-                <item.icon className={cn("w-5 h-5", isActive ? "text-primary" : "text-gray-400")} />
+                <item.icon className={cn("w-5 h-5", isActive ? "text-primary" : "text-textSecondary/70")} />
                 {item.name}
               </button>
             );

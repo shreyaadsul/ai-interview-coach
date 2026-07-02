@@ -51,24 +51,26 @@ const transformSuggestion = (sug) => {
 
 export default function SuggestionCard({ suggestions = [] }) {
   return (
-    <div className="bg-[#111827] border border-[#1F2937] p-6 rounded-2xl space-y-4 shadow-xl">
-      <h3 className="text-lg font-semibold text-white">Suggestions</h3>
-      <div className="space-y-4 divide-y divide-white/10">
-        {suggestions.map((sug, index) => {
+    <div className="bg-white border border-[#E5E7EB] p-6 rounded-3xl space-y-4 shadow-sm">
+      <h3 className="text-base font-bold text-textPrimary">Suggestions</h3>
+      <div className="space-y-4 divide-y divide-gray-100">
+        {suggestions.length > 0 ? suggestions.map((sug, index) => {
           const transformed = transformSuggestion(sug);
           if (!transformed) return null;
           return (
             <div key={index} className={index > 0 ? "pt-4 space-y-1" : "space-y-1"}>
-              <div className="flex items-center gap-2 text-sm font-semibold text-white">
+              <div className="flex items-center gap-2 text-sm font-bold text-textPrimary">
                 <span className="text-base select-none">{transformed.icon}</span>
                 <span>{transformed.title}</span>
               </div>
-              <p className="text-sm text-gray-300 pl-6 leading-relaxed">
+              <p className="text-xs text-textSecondary pl-6 leading-relaxed">
                 {transformed.description}
               </p>
             </div>
           );
-        })}
+        }) : (
+          <p className="text-textSecondary text-xs">No improvements suggested.</p>
+        )}
       </div>
     </div>
   );

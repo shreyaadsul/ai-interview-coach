@@ -1,122 +1,137 @@
 import React from 'react';
 import { cn } from '../lib/utils';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
 
-const CircularProgress = ({ value, max, colorClass, trailColorClass, label, title, subtitle }) => {
+const CircularProgress = ({ value, max, colorClass, trailColorClass, label, title, subtitle, isEmpty }) => {
   const radius = 36;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (value / max) * circumference;
+  const strokeDashoffset = isEmpty ? circumference : circumference - (value / max) * circumference;
 
   return (
     <div className="flex items-center gap-4">
-      <div className="relative w-20 h-20 flex items-center justify-center">
-        <svg className="transform -rotate-90 w-20 h-20">
+      <div className="relative w-16 h-16 flex items-center justify-center flex-shrink-0">
+        <svg className="transform -rotate-90 w-16 h-16">
           <circle
             className={trailColorClass}
-            strokeWidth="6"
+            strokeWidth="5"
             stroke="currentColor"
             fill="transparent"
             r={radius}
-            cx="40"
-            cy="40"
+            cx="32"
+            cy="32"
           />
           <circle
             className={cn("transition-all duration-1000 ease-in-out", colorClass)}
-            strokeWidth="6"
+            strokeWidth="5"
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
             strokeLinecap="round"
             stroke="currentColor"
             fill="transparent"
             r={radius}
-            cx="40"
-            cy="40"
+            cx="32"
+            cy="32"
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center flex-col">
-          <span className="text-sm font-bold text-white">{label}</span>
+          <span className="text-sm font-bold text-textPrimary">{label}</span>
         </div>
       </div>
       <div>
-        <h3 className="text-sm text-gray-400 mb-1">{title}</h3>
-        <p className="text-lg font-semibold text-white">{subtitle}</p>
+        <h3 className="text-xs font-semibold text-textSecondary uppercase tracking-wider mb-0.5">{title}</h3>
+        <p className="text-sm font-medium text-textPrimary leading-tight">{subtitle}</p>
       </div>
     </div>
   );
 };
 
 export default function KPICards({ resumeData, history }) {
-  const atsScore = resumeData?.resume_score || 0;
-  const suggestedRole = resumeData?.suggested_roles?.[0] || "Not Analyzed Yet";
+  const isResumeUploaded = resumeData && resumeData.fileName !== "No Resume Uploaded" && resumeData.resume_score > 0;
+  const hasInterviews = history && history.length > 0;
+
+  const atsScore = isResumeUploaded ? resumeData.resume_score : 0;
+  const suggestedRole = isResumeUploaded ? resumeData.suggested_roles?.[0] : null;
   
-  const latestSession = history && history.length > 0 ? history[0] : null;
+  const latestSession = hasInterviews ? history[0] : null;
   const interviewScore = latestSession ? (latestSession.score || 0) : 0;
   const confidenceScore = latestSession?.report?.confidence_score || 0;
   const questionsCount = latestSession?.questions_count || 0;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5 mb-8">
       {/* 1. ATS Score */}
-      <div className="glass-card p-5 group relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-success/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-success/20 transition-colors" />
+      <div className="glass p-5 relative overflow-hidden">
         <CircularProgress 
           value={atsScore} max={100} 
           colorClass="text-success" 
-          trailColorClass="text-success/20" 
-          label={atsScore.toString()} 
+          trailColorClass="text-success/10" 
+          label={isResumeUploaded ? atsScore.toString() : "--"} 
           title="ATS Score" 
-          subtitle={`${atsScore}/100`} 
+          subtitle={isResumeUploaded ? `${atsScore}/100` : "No resume analyzed yet."} 
+          isEmpty={!isResumeUploaded}
         />
       </div>
 
       {/* 2. Interview Score */}
-      <div className="glass-card p-5 group relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-secondary/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-secondary/20 transition-colors" />
+      <div className="glass p-5 relative overflow-hidden">
         <CircularProgress 
           value={interviewScore} max={100} 
           colorClass="text-secondary" 
-          trailColorClass="text-secondary/20" 
-          label={interviewScore.toString()} 
-          title="Latest Score" 
-          subtitle={`${interviewScore}/100`} 
+          trailColorClass="text-secondary/10" 
+          label={hasInterviews ? interviewScore.toString() : "--"} 
+          title="Interview Score" 
+          subtitle={hasInterviews ? `${interviewScore}/100` : "Complete your first interview."} 
+          isEmpty={!hasInterviews}
         />
       </div>
 
       {/* 3. Confidence Score */}
-      <div className="glass-card p-5 group relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-primary/20 transition-colors" />
+      <div className="glass p-5 relative overflow-hidden">
         <CircularProgress 
           value={confidenceScore} max={100} 
           colorClass="text-primary" 
-          trailColorClass="text-primary/20" 
-          label={confidenceScore.toString()} 
+          trailColorClass="text-primary/10" 
+          label={hasInterviews ? confidenceScore.toString() : "--"} 
           title="Confidence" 
-          subtitle={`${confidenceScore}/100`} 
+          subtitle={hasInterviews ? `${confidenceScore}/100` : "No interview data available."} 
+          isEmpty={!hasInterviews}
         />
       </div>
 
       {/* 4. Questions Completed */}
-      <div className="glass-card p-5 group relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-orange-500/20 transition-colors" />
+      <div className="glass p-5 relative overflow-hidden">
         <CircularProgress 
-          value={questionsCount} max={questionsCount} 
+          value={questionsCount} max={100} 
           colorClass="text-orange-500" 
-          trailColorClass="text-orange-500/20" 
-          label={`${questionsCount}/${questionsCount}`} 
+          trailColorClass="text-orange-500/10" 
+          label={hasInterviews ? questionsCount.toString() : "--"} 
           title="Questions" 
-          subtitle="Completed" 
+          subtitle={hasInterviews ? "Questions Completed" : "No interview data."} 
+          isEmpty={!hasInterviews}
         />
       </div>
 
       {/* 5. AI Recommendation */}
-      <div className="gradient-border rounded-2xl p-5 bg-navy-900/50 backdrop-blur-md group relative overflow-hidden flex flex-col justify-center">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-success/10 rounded-full blur-3xl -mr-10 -mt-10" />
-        <div className="flex items-center gap-2 mb-2">
-          <CheckCircle2 className="w-5 h-5 text-success" />
-          <span className="text-xs font-semibold text-success bg-success/10 px-2 py-1 rounded-full">Recommended</span>
-        </div>
-        <h3 className="text-sm font-medium text-white mb-1 truncate" title={suggestedRole}>{suggestedRole}</h3>
-        <p className="text-xs text-gray-400">Confidence: <span className="text-white font-semibold">{atsScore}%</span></p>
+      <div className="glass p-5 relative overflow-hidden flex flex-col justify-center">
+        {isResumeUploaded ? (
+          <>
+            <div className="flex items-center gap-2 mb-1.5">
+              <CheckCircle2 className="w-4 h-4 text-success" />
+              <span className="text-[10px] font-bold text-success bg-success/10 px-2 py-0.5 rounded-full">Recommended</span>
+            </div>
+            <h3 className="text-sm font-bold text-textPrimary truncate" title={suggestedRole}>{suggestedRole || "Software Engineer"}</h3>
+            <p className="text-[11px] text-textSecondary mt-0.5">Strength match: <span className="text-textPrimary font-semibold">{atsScore}%</span></p>
+          </>
+        ) : (
+          <div className="flex flex-col justify-center py-1.5">
+            <div className="flex items-center gap-2 mb-1">
+              <AlertCircle className="w-4 h-4 text-textSecondary/50" />
+              <span className="text-[10px] font-bold text-textSecondary bg-gray-100 px-2 py-0.5 rounded-full">Pending</span>
+            </div>
+            <h3 className="text-sm font-bold text-textSecondary truncate">No skill data yet.</h3>
+            <p className="text-[11px] text-textSecondary mt-0.5">Upload resume to begin.</p>
+          </div>
+        )}
       </div>
     </div>
   );
