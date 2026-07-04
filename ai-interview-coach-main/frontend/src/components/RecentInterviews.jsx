@@ -2,7 +2,7 @@ import React from 'react';
 import { History, ArrowRight } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-export default function RecentInterviews({ history }) {
+export default function RecentInterviews({ history, onViewAll }) {
   const hasInterviews = history && history.length > 0;
   
   const interviews = hasInterviews ? history.slice(0, 3).map(h => ({
@@ -44,7 +44,10 @@ export default function RecentInterviews({ history }) {
         )}
       </div>
 
-      <button className="w-full mt-5 py-3 rounded-xl bg-gray-50 hover:bg-gray-100 text-textSecondary hover:text-textPrimary text-sm font-semibold transition-all flex items-center justify-center gap-2 group border border-gray-200">
+      <button 
+        onClick={onViewAll}
+        className="w-full mt-5 py-3 rounded-xl bg-gray-50 hover:bg-gray-100 text-textSecondary hover:text-textPrimary text-sm font-semibold transition-all flex items-center justify-center gap-2 group border border-gray-200"
+      >
         View All History
         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
       </button>

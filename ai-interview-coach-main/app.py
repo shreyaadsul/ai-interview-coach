@@ -11,7 +11,7 @@ from database import get_db, is_db_available
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)  # Allow cross-origin requests from React dashboard
+CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
 
 def get_request_user_id():
     if request.is_json:
@@ -919,6 +919,82 @@ def save_user():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/user/google-login', methods=['POST', 'OPTIONS'])
+def google_login():
+    if request.method == 'OPTIONS':
+        return jsonify({"success": True}), 200
+
+    db, collections = get_db()
+    if db is None:
+        return jsonify({"success": False, "error": "MongoDB not available"}), 503
+        
+    data = request.json or {}
+    email = data.get('email')
+    name = data.get('name', 'Google User')
+    avatar = data.get('avatar', '👨‍💻')
+    uid = data.get('uid')
+    
+    if not email:
+        return jsonify({"success": False, "error": "Email is required"}), 400
+        
+    try:
+        user = collections['users'].find_one({"email": email})
+        
+        if not user:
+            # Create a basic profile for the new user in MongoDB
+            new_user = {
+                "user_id": email,
+                "email": email,
+                "name": name,
+                "avatar": avatar,
+                "uid": uid,
+                "onboardingCompleted": False,
+                "status": "Student",
+                "degree": "",
+                "graduationYear": "2026",
+                "targetRole": "",
+                "experienceLevel": "Fresher",
+                "timeline": "Immediate",
+                "skills": [],
+                "weakAreas": [],
+                "coreStrengths": [],
+                "areasOfDevelopment": []
+            }
+            collections['users'].insert_one(new_user)
+            
+            # Prepare profile for frontend
+            user_profile = new_user.copy()
+            user_profile.pop("_id", None)
+            
+            return jsonify({
+                "success": True,
+                "isNewUser": True,
+                "user": user_profile
+            }), 200
+        else:
+            # User already exists! Return user profile
+            user_profile = user.copy()
+            user_profile.pop("_id", None)
+            user_profile.pop("password", None)
+            
+            # Map fields for frontend compatibility
+            user_profile["name"] = user_profile.get("name", "")
+            user_profile["email"] = user_profile.get("email", "")
+            user_profile["targetRole"] = user_profile.get("target_role", user_profile.get("targetRole", ""))
+            user_profile["experienceLevel"] = user_profile.get("experience_level", user_profile.get("experienceLevel", "Fresher"))
+            
+            # Determine if onboarding has been completed
+            is_new = not (user_profile.get("onboardingCompleted", False) or (user_profile.get("targetRole") and user_profile.get("degree")))
+            
+            return jsonify({
+                "success": True,
+                "isNewUser": is_new,
+                "user": user_profile
+            }), 200
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route('/api/user/login', methods=['POST'])
 def login_user():
     db, collections = get_db()
@@ -1001,6 +1077,133 @@ def get_resume():
         return jsonify(resume_doc), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/dashboard', methods=['GET'])
+def get_dashboard_summary():
+    db, collections = get_db()
+    if db is None:
+        return jsonify({"success": False, "error": "MongoDB not available"}), 503
+        
+    user_id = get_request_user_id()
+    if not user_id:
+        return jsonify({"success": False, "error": "user_id is required"}), 400
+        
+    try:
+        # 1. Fetch latest resume analysis
+        resume_doc = collections['resumes'].find_one(
+            {"user_id": user_id},
+            {'_id': 0},
+            sort=[("upload_date", -1)]
+        )
+        
+        resume_uploaded = False
+        resume_score = 0
+        resume_date = None
+        fileName = None
+        if resume_doc:
+            resume_uploaded = True
+            resume_score = resume_doc.get("resume_score", 0)
+            resume_date = resume_doc.get("uploadedDate")
+            fileName = resume_doc.get("fileName")
+            
+        # 2. Fetch latest ATS report
+        ats_doc = db.ats_reports.find_one(
+            {"user_id": user_id},
+            {'_id': 0},
+            sort=[("timestamp", -1)]
+        )
+        
+        ats_completed = False
+        ats_score = 0
+        ats_missing_keywords = []
+        ats_suggestions = []
+        if ats_doc:
+            ats_completed = True
+            ats_score = ats_doc.get("atsScore", 0)
+            ats_missing_keywords = ats_doc.get("missingKeywords", [])
+            ats_suggestions = ats_doc.get("suggestions", [])
+            
+        # 3. Fetch latest mock interview session & report
+        latest_session = collections['interview_sessions'].find_one(
+            {"user_id": user_id},
+            {'_id': 0},
+            sort=[("_id", -1)]
+        )
+        
+        mock_completed = False
+        interview_score = 0
+        recent_interview = None
+        if latest_session:
+            mock_completed = True
+            interview_score = latest_session.get("score", 0)
+            
+            # Fetch report
+            report_doc = collections['interview_reports'].find_one(
+                {"session_id": latest_session["session_id"], "user_id": user_id},
+                {'_id': 0}
+            )
+            if report_doc and "report" in report_doc:
+                latest_session["report"] = report_doc["report"]
+                
+                coach_doc = collections['career_coach'].find_one(
+                    {"session_id": latest_session["session_id"], "user_id": user_id},
+                    {'_id': 0}
+                )
+                if coach_doc and "career_coach" in coach_doc:
+                    latest_session["report"]["career_coach"] = coach_doc["career_coach"]
+            latest_session["id"] = latest_session["session_id"]
+            recent_interview = latest_session
+            
+        # 4. Fetch career insights
+        insights_doc = db.career_insights.find_one({"user_id": user_id}, {'_id': 0})
+        career_insights = insights_doc.get("insights", {}) if insights_doc else {}
+        
+        # 5. Dynamically calculate overall readinessScore
+        # Formula: Resume = 30%, ATS = 30%, Interview = 40%
+        readiness_score = int(round(resume_score * 0.30 + ats_score * 0.30 + interview_score * 0.40))
+        
+        # 6. Status text based on readinessScore
+        status_text = "Beginner"
+        if 40 <= readiness_score <= 69:
+            status_text = "Improving"
+        elif 70 <= readiness_score <= 84:
+            status_text = "Interview Ready"
+        elif readiness_score >= 85:
+            status_text = "Excellent Candidate"
+            
+        import datetime
+        last_updated = datetime.datetime.now().isoformat()
+        
+        return jsonify({
+            "success": True,
+            "resumeScore": resume_score,
+            "atsScore": ats_score,
+            "interviewScore": interview_score,
+            "readinessScore": readiness_score,
+            "statusText": status_text,
+            
+            "resumeUploaded": resume_uploaded,
+            "resumeDate": resume_date,
+            "resumeFileName": fileName,
+            "resumeInsights": {
+                "strengths": resume_doc.get("strengths", []) if resume_doc else [],
+                "weaknesses": resume_doc.get("weaknesses", []) if resume_doc else [],
+                "summary": resume_doc.get("summary", "") if resume_doc else ""
+            },
+            
+            "atsCompleted": ats_completed,
+            "atsMissingKeywords": ats_missing_keywords,
+            "atsSuggestions": ats_suggestions,
+            
+            "mockCompleted": mock_completed,
+            "recentInterview": recent_interview,
+            "careerInsights": career_insights,
+            "lastUpdated": last_updated
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 @app.route('/api/career-insights', methods=['GET'])
 def get_career_insights():
@@ -1134,4 +1337,4 @@ def save_settings():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=False)
+    app.run(port=5000, debug=True)

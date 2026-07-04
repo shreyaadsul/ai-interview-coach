@@ -8,6 +8,7 @@ import QuestionAnalysis from './components/QuestionAnalysis';
 import ScoreBreakdown from './components/ScoreBreakdown';
 import ATSSuggestions from './components/ATSSuggestions';
 import RecentInterviews from './components/RecentInterviews';
+import PerformanceChart from './components/PerformanceChart';
 import ResumeAnalysisPage from './components/ResumeAnalysisPage';
 import MockInterviewPage from './components/MockInterviewPage';
 import ATSCheckerPage from './components/ATSCheckerPage';
@@ -80,26 +81,20 @@ function App() {
   const handleLogout = () => {
     setUserProfile(null);
     setCurrentPage('Dashboard');
-    // Clear the resume data so the next user starts fresh
     localStorage.removeItem('resumeData');
     setResumeData({
-      name: "Shreya Adsul",
-      education: "B.Tech in AIML",
+      name: "",
+      education: "Not Provided",
       experience_level: "Fresher",
-      skills: [
-        "Python", "Machine Learning", "Flask", "SQL", "Pandas", "NumPy",
-        "Scikit-Learn", "Git", "Automation", "REST APIs", "HTML", "CSS", "JavaScript"
-      ],
-      projects_count: 4,
-      summary: "Shreya is a B.Tech AIML student with strong skills in Machine Learning, Python, and Web Development. She has built impactful projects like AutoJi (Instagram Automation) and WhatsApp Bot, showcasing automation and API integration expertise.",
-      suggested_roles: [
-        "Machine Learning Engineer", "Data Scientist", "Backend Developer", "AI Engineer", "Python Developer"
-      ],
-      resume_score: 82,
-      strengths: ["Strong project portfolio", "Good AI foundation"],
-      weaknesses: ["Limited cloud exposure"],
-      fileName: "Static_Resume.pdf",
-      uploadedDate: "Uploaded on May 29, 2025"
+      skills: [],
+      projects_count: 0,
+      summary: "Please head over to the Resume Analysis tab and upload your resume to generate your AI-driven career summary and extract your skills.",
+      suggested_roles: [],
+      resume_score: 0,
+      strengths: [],
+      weaknesses: [],
+      fileName: "No Resume Uploaded",
+      uploadedDate: "N/A"
     });
   };
   
@@ -193,6 +188,60 @@ function App() {
     window.speechSynthesis.onvoiceschanged = loadVoices;
   }, [globalVoice]);
 
+  const [dashboardSummary, setDashboardSummary] = useState({
+    resumeScore: 0,
+    atsScore: 0,
+    interviewScore: 0,
+    readinessScore: 0,
+    statusText: "Beginner",
+    resumeUploaded: false,
+    resumeDate: null,
+    resumeFileName: null,
+    resumeInsights: { strengths: [], weaknesses: [], summary: "" },
+    atsCompleted: false,
+    atsMissingKeywords: [],
+    atsSuggestions: [],
+    mockCompleted: false,
+    recentInterview: null,
+    careerInsights: {},
+    lastUpdated: null
+  });
+
+  const fetchDashboardData = async () => {
+    if (!userProfile?.email) return;
+    try {
+      const response = await fetch(`http://localhost:5000/api/dashboard?user_id=${encodeURIComponent(userProfile.email)}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setDashboardSummary(data);
+          if (data.resumeUploaded && data.resumeInsights) {
+            setResumeData(prev => ({
+              ...prev,
+              resume_score: data.resumeScore,
+              atsScore: data.atsScore,
+              ats_score: data.atsScore,
+              fileName: data.resumeFileName || prev.fileName,
+              uploadedDate: data.resumeDate || prev.uploadedDate,
+              strengths: data.resumeInsights.strengths,
+              weaknesses: data.resumeInsights.weaknesses,
+              summary: data.resumeInsights.summary
+            }));
+          }
+          if (data.careerInsights) {
+            setCareerInsights(data.careerInsights);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch dashboard data:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [userProfile]);
+
 
   // Current session states
   const [showSetupModal, setShowSetupModal] = useState(false);
@@ -207,23 +256,18 @@ function App() {
     const saved = localStorage.getItem('resumeData');
     if (saved) return JSON.parse(saved);
     return {
-      name: userProfile?.name || "Shreya Adsul",
-      education: "B.Tech in AIML",
+      name: userProfile?.name || "",
+      education: "Not Provided",
       experience_level: userProfile?.experienceLevel || "Fresher",
-      skills: [
-        "Python", "Machine Learning", "Flask", "SQL", "Pandas", "NumPy",
-        "Scikit-Learn", "Git", "Automation", "REST APIs", "HTML", "CSS", "JavaScript"
-      ],
-      projects_count: 4,
-      summary: "Shreya is a B.Tech AIML student with strong skills in Machine Learning, Python, and Web Development. She has built impactful projects like AutoJi (Instagram Automation) and WhatsApp Bot, showcasing automation and API integration expertise.",
-      suggested_roles: [
-        userProfile?.targetRole || "Machine Learning Engineer", "Data Scientist", "Backend Developer", "AI Engineer", "Python Developer"
-      ],
-      resume_score: 82,
-      strengths: ["Strong project portfolio", "Good AI foundation"],
-      weaknesses: ["Limited cloud exposure"],
-      fileName: "Static_Resume.pdf",
-      uploadedDate: "Uploaded on May 29, 2025"
+      skills: [],
+      projects_count: 0,
+      summary: "Please head over to the Resume Analysis tab and upload your resume to generate your AI-driven career summary and extract your skills.",
+      suggested_roles: userProfile?.targetRole ? [userProfile.targetRole] : [],
+      resume_score: 0,
+      strengths: [],
+      weaknesses: [],
+      fileName: "No Resume Uploaded",
+      uploadedDate: "N/A"
     };
   });
 
@@ -309,6 +353,7 @@ function App() {
         report: disqualifiedReport
       };
       setInterviewHistory([newSession, ...interviewHistory]);
+      await fetchDashboardData();
       
       setDynamicQuestions([]);
       setCurrentPage('Interview Report');
@@ -386,6 +431,7 @@ function App() {
         }
 
         setInterviewHistory(prev => [newSession, ...prev]);
+        await fetchDashboardData();
         
         setDynamicQuestions([]);
         setCurrentPage('Interview Report');
@@ -468,7 +514,10 @@ function App() {
               {/* Quick Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* 1. Resume Score */}
-                <div className="bg-white border border-[#E5E7EB] p-5 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] space-y-3 transition-all duration-200">
+                <div 
+                  onClick={() => !dashboardSummary.resumeUploaded && setCurrentPage('Resume Analysis')}
+                  className={`bg-white border border-[#E5E7EB] p-5 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] space-y-3 transition-all duration-200 ${!dashboardSummary.resumeUploaded ? 'cursor-pointer hover:bg-gray-50/50' : ''}`}
+                >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-textSecondary uppercase tracking-wider">Resume Score</span>
                     <div className="w-8 h-8 rounded-lg bg-primary/5 border border-primary/10 flex items-center justify-center text-primary">
@@ -476,13 +525,27 @@ function App() {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <div className="text-3xl font-extrabold text-textPrimary">--</div>
-                    <p className="text-xs text-textSecondary font-medium">📄 Upload your resume to generate insights.</p>
+                    {dashboardSummary.resumeUploaded ? (
+                      <>
+                        <div className="text-3xl font-extrabold text-textPrimary">{dashboardSummary.resumeScore}</div>
+                        <p className="text-xs text-textSecondary font-medium truncate">📄 {dashboardSummary.resumeDate || 'Resume Analyzed'}</p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-3xl font-extrabold text-textPrimary">--</div>
+                        <span className="text-xs text-primary font-bold hover:underline flex items-center gap-1">
+                          📄 Upload Resume <ChevronRight className="w-3.5 h-3.5" />
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 {/* 2. ATS Score */}
-                <div className="bg-white border border-[#E5E7EB] p-5 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] space-y-3 transition-all duration-200">
+                <div 
+                  onClick={() => !dashboardSummary.atsCompleted && setCurrentPage('ATS Checker')}
+                  className={`bg-white border border-[#E5E7EB] p-5 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] space-y-3 transition-all duration-200 ${!dashboardSummary.atsCompleted ? 'cursor-pointer hover:bg-gray-50/50' : ''}`}
+                >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-textSecondary uppercase tracking-wider">ATS Score</span>
                     <div className="w-8 h-8 rounded-lg bg-secondary/5 border border-secondary/10 flex items-center justify-center text-secondary">
@@ -490,13 +553,27 @@ function App() {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <div className="text-3xl font-extrabold text-textPrimary">--</div>
-                    <p className="text-xs text-textSecondary font-medium">📈 Analyze your resume to calculate ATS compatibility.</p>
+                    {dashboardSummary.atsCompleted ? (
+                      <>
+                        <div className="text-3xl font-extrabold text-textPrimary">{dashboardSummary.atsScore}</div>
+                        <p className="text-xs text-textSecondary font-medium truncate">📈 Compatibility: {dashboardSummary.atsScore >= 80 ? 'Excellent' : dashboardSummary.atsScore >= 70 ? 'Good' : 'Needs Improvement'}</p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-3xl font-extrabold text-textPrimary">--</div>
+                        <span className="text-xs text-secondary font-bold hover:underline flex items-center gap-1">
+                          📈 Complete ATS Analysis <ChevronRight className="w-3.5 h-3.5" />
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
                 {/* 3. Interview Score */}
-                <div className="bg-white border border-[#E5E7EB] p-5 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] space-y-3 transition-all duration-200">
+                <div 
+                  onClick={() => !dashboardSummary.mockCompleted && setShowSetupModal(true)}
+                  className={`bg-white border border-[#E5E7EB] p-5 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] space-y-3 transition-all duration-200 ${!dashboardSummary.mockCompleted ? 'cursor-pointer hover:bg-gray-50/50' : ''}`}
+                >
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-textSecondary uppercase tracking-wider">Interview Score</span>
                     <div className="w-8 h-8 rounded-lg bg-success/5 border border-success/10 flex items-center justify-center text-success">
@@ -504,8 +581,19 @@ function App() {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <div className="text-3xl font-extrabold text-textPrimary">--</div>
-                    <p className="text-xs text-textSecondary font-medium">🎤 Complete your first mock interview.</p>
+                    {dashboardSummary.mockCompleted ? (
+                      <>
+                        <div className="text-3xl font-extrabold text-textPrimary">{dashboardSummary.interviewScore}</div>
+                        <p className="text-xs text-textSecondary font-medium truncate">🎤 Last Role: {dashboardSummary.recentInterview?.role || 'General'}</p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-3xl font-extrabold text-textPrimary">--</div>
+                        <span className="text-xs text-success font-bold hover:underline flex items-center gap-1">
+                          🎤 Take Mock Interview <ChevronRight className="w-3.5 h-3.5" />
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -518,8 +606,18 @@ function App() {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <div className="text-3xl font-extrabold text-textPrimary">--</div>
-                    <p className="text-xs text-textSecondary font-medium">🚀 Complete your first interview to unlock readiness insights.</p>
+                    <div className="text-3xl font-extrabold text-textPrimary">
+                      {dashboardSummary.resumeUploaded || dashboardSummary.atsCompleted || dashboardSummary.mockCompleted
+                        ? `${dashboardSummary.readinessScore}%`
+                        : "--"
+                      }
+                    </div>
+                    <p className="text-xs text-textSecondary font-medium truncate">
+                      🚀 Status: {dashboardSummary.resumeUploaded || dashboardSummary.atsCompleted || dashboardSummary.mockCompleted
+                        ? dashboardSummary.statusText
+                        : "Unlock readiness insights."
+                      }
+                    </p>
                   </div>
                 </div>
               </div>
@@ -537,30 +635,57 @@ function App() {
                       <p className="text-xs text-textSecondary font-semibold">Your preparation score calculated by AI</p>
                     </div>
 
-                    {/* Empty circular progress ring placeholder */}
-                    <div className="relative w-36 h-36 flex items-center justify-center">
-                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                        <circle 
-                          cx="50" cy="50" r="40" 
-                          stroke="#F3F4F6" strokeWidth="8" fill="transparent" 
-                        />
-                        <circle 
-                          cx="50" cy="50" r="40" 
-                          stroke="#E5E7EB" strokeWidth="8" fill="transparent" 
-                          strokeDasharray={2 * Math.PI * 40}
-                          strokeDashoffset={2 * Math.PI * 40}
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                      <div className="absolute flex flex-col items-center justify-center">
-                        <span className="text-3xl font-black text-textSecondary">--</span>
-                        <span className="text-[10px] text-textSecondary uppercase tracking-widest font-extrabold mt-0.5">READY</span>
+                    {/* Circular progress ring */}
+                    {dashboardSummary.resumeUploaded || dashboardSummary.atsCompleted || dashboardSummary.mockCompleted ? (
+                      <div className="relative w-36 h-36 flex items-center justify-center">
+                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                          <circle 
+                            cx="50" cy="50" r="40" 
+                            stroke="#F3F4F6" strokeWidth="8" fill="transparent" 
+                          />
+                          <circle 
+                            cx="50" cy="50" r="40" 
+                            stroke="#4F46E5" strokeWidth="8" fill="transparent" 
+                            strokeDasharray={2 * Math.PI * 40}
+                            strokeDashoffset={2 * Math.PI * 40 - (dashboardSummary.readinessScore / 100) * (2 * Math.PI * 40)}
+                            strokeLinecap="round"
+                            className="transition-all duration-500 ease-out"
+                          />
+                        </svg>
+                        <div className="absolute flex flex-col items-center justify-center">
+                          <span className="text-3xl font-black text-textPrimary">{dashboardSummary.readinessScore}%</span>
+                          <span className="text-[9px] text-textSecondary uppercase tracking-widest font-extrabold mt-0.5 px-2 text-center truncate max-w-[120px]">{dashboardSummary.statusText}</span>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="relative w-36 h-36 flex items-center justify-center">
+                        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                          <circle 
+                            cx="50" cy="50" r="40" 
+                            stroke="#F3F4F6" strokeWidth="8" fill="transparent" 
+                          />
+                          <circle 
+                            cx="50" cy="50" r="40" 
+                            stroke="#E5E7EB" strokeWidth="8" fill="transparent" 
+                            strokeDasharray={2 * Math.PI * 40}
+                            strokeDashoffset={2 * Math.PI * 40}
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                        <div className="absolute flex flex-col items-center justify-center">
+                          <span className="text-3xl font-black text-textSecondary">--</span>
+                          <span className="text-[10px] text-textSecondary uppercase tracking-widest font-extrabold mt-0.5">READY</span>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="space-y-4 w-full">
                       <p className="text-xs text-textSecondary leading-relaxed px-6">
-                        Complete your first mock interview to generate your readiness score.
+                        {dashboardSummary.resumeUploaded || dashboardSummary.atsCompleted || dashboardSummary.mockCompleted ? (
+                          <>Your overall readiness score is <strong>{dashboardSummary.readinessScore}%</strong>. Keep improving to reach the <strong>Excellent Candidate</strong> level!</>
+                        ) : (
+                          <>Complete your first mock interview to generate your readiness score.</>
+                        )}
                       </p>
                       <button 
                         onClick={() => setShowSetupModal(true)}
@@ -572,49 +697,61 @@ function App() {
                   </div>
 
                   {/* 2. Performance Trend Card */}
-                  <div className="bg-white border border-[#E5E7EB] p-8 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] flex flex-col justify-between transition-all duration-200 min-h-[340px]">
-                    <div className="space-y-1">
-                      <h3 className="text-base font-bold text-textPrimary">Performance Trend</h3>
-                      <p className="text-xs text-textSecondary font-semibold">Mock interview score milestones</p>
+                  {interviewHistory && interviewHistory.length > 0 ? (
+                    <div className="min-h-[340px] flex flex-col justify-between">
+                      <PerformanceChart data={interviewHistory} />
                     </div>
-
-                    {/* Empty state chart illustration */}
-                    <div className="flex-grow flex flex-col items-center justify-center py-8 space-y-3">
-                      <div className="w-16 h-16 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-textSecondary shadow-sm">
-                        <TrendingUp className="w-8 h-8 opacity-40" />
+                  ) : (
+                    <div className="bg-white border border-[#E5E7EB] p-8 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] flex flex-col justify-between transition-all duration-200 min-h-[340px]">
+                      <div className="space-y-1">
+                        <h3 className="text-base font-bold text-textPrimary">Performance Trend</h3>
+                        <p className="text-xs text-textSecondary font-semibold">Mock interview score milestones</p>
                       </div>
-                      <p className="text-xs text-textSecondary font-bold">No interview data available yet.</p>
+
+                      {/* Empty state chart illustration */}
+                      <div className="flex-grow flex flex-col items-center justify-center py-8 space-y-3">
+                        <div className="w-16 h-16 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-textSecondary shadow-sm">
+                          <TrendingUp className="w-8 h-8 opacity-40" />
+                        </div>
+                        <p className="text-xs text-textSecondary font-bold">No interview data available yet.</p>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* RIGHT SIDE (40%): spans 2 of 5 columns */}
                 <div className="lg:col-span-2 space-y-6">
                   
                   {/* 1. Recent Interviews Card */}
-                  <div className="bg-white border border-[#E5E7EB] p-8 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] flex flex-col justify-between transition-all duration-200 min-h-[340px]">
-                    <div className="space-y-1">
-                      <h3 className="text-base font-bold text-textPrimary">Recent Interviews</h3>
-                      <p className="text-xs text-textSecondary font-semibold">History of your mock sessions</p>
+                  {interviewHistory && interviewHistory.length > 0 ? (
+                    <div className="min-h-[340px] flex flex-col justify-between">
+                      <RecentInterviews history={interviewHistory} onViewAll={() => setCurrentPage('Interview History')} />
                     </div>
+                  ) : (
+                    <div className="bg-white border border-[#E5E7EB] p-8 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] flex flex-col justify-between transition-all duration-200 min-h-[340px]">
+                      <div className="space-y-1">
+                        <h3 className="text-base font-bold text-textPrimary">Recent Interviews</h3>
+                        <p className="text-xs text-textSecondary font-semibold">History of your mock sessions</p>
+                      </div>
 
-                    {/* Empty state table illustration */}
-                    <div className="flex-grow flex flex-col items-center justify-center py-10 space-y-4">
-                      <div className="w-14 h-14 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-textSecondary shadow-sm">
-                        <Video className="w-6 h-6 opacity-40" />
+                      {/* Empty state table illustration */}
+                      <div className="flex-grow flex flex-col items-center justify-center py-10 space-y-4">
+                        <div className="w-14 h-14 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center text-textSecondary shadow-sm">
+                          <Video className="w-6 h-6 opacity-40" />
+                        </div>
+                        <div className="text-center space-y-1">
+                          <p className="text-xs text-textPrimary font-bold">No interviews completed yet.</p>
+                          <p className="text-[11px] text-textSecondary">Your mock records will appear here after your first session.</p>
+                        </div>
+                        <button 
+                          onClick={() => setShowSetupModal(true)}
+                          className="px-4 py-2 border border-primary/20 hover:border-primary/40 text-xs font-bold rounded-xl bg-primary/5 hover:bg-primary/10 text-primary transition-all duration-200 shadow-sm"
+                        >
+                          Start First Interview
+                        </button>
                       </div>
-                      <div className="text-center space-y-1">
-                        <p className="text-xs text-textPrimary font-bold">No interviews completed yet.</p>
-                        <p className="text-[11px] text-textSecondary">Your mock records will appear here after your first session.</p>
-                      </div>
-                      <button 
-                        onClick={() => setShowSetupModal(true)}
-                        className="px-4 py-2 border border-primary/20 hover:border-primary/40 text-xs font-bold rounded-xl bg-primary/5 hover:bg-primary/10 text-primary transition-all duration-200 shadow-sm"
-                      >
-                        Start First Interview
-                      </button>
                     </div>
-                  </div>
+                  )}
 
                   {/* 2. Recommended Actions Card */}
                   <div className="bg-white border border-[#E5E7EB] p-8 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] flex flex-col justify-between transition-all duration-200 min-h-[340px]">
@@ -804,7 +941,7 @@ function App() {
               transition={{ duration: 0.5 }}
               className="max-w-7xl mx-auto"
             >
-              <ATSCheckerPage setResumeData={setResumeData} />
+              <ATSCheckerPage setResumeData={setResumeData} onAtsComplete={fetchDashboardData} />
             </motion.div>
           ) : currentPage === 'Interview History' ? (
             <motion.div

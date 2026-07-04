@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Bot, LogIn, ArrowRight, ArrowLeft, Check, Loader2, 
   User, Mail, Lock, GraduationCap, Calendar, Briefcase, 
-  Code, AlertCircle, Sparkles, Smile 
+  Code, AlertCircle, Sparkles, Smile, Eye, EyeOff 
 } from 'lucide-react';
+import { auth, googleProvider, signInWithPopup } from '../lib/firebase';
 
 const SUGGESTED_SKILLS = [
   "Python", "JavaScript", "React", "Node.js", "Java", "C++", 
@@ -24,6 +25,90 @@ export default function LoginPage({ onLogin }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showOnboardingPassword, setShowOnboardingPassword] = useState(false);
+  const [showOnboardingConfirmPassword, setShowOnboardingConfirmPassword] = useState(false);
+
+  const [nameTouched, setNameTouched] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
+  const [passwordTouched, setPasswordTouched] = useState(false);
+  const [confirmPasswordTouched, setConfirmPasswordTouched] = useState(false);
+
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      
+      let response;
+      try {
+        response = await fetch("http://localhost:5000/api/user/google-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: user.email,
+            name: user.displayName || 'Google User',
+            avatar: user.photoURL || '👨‍💻',
+            uid: user.uid
+          })
+        });
+      } catch (networkErr) {
+        console.error("Network/CORS error during backend fetch:", networkErr);
+        if (!navigator.onLine) {
+          throw new Error("Network error: You are offline. Please check your internet connection.");
+        } else {
+          throw new Error("Backend server is unavailable or CORS request was blocked. Please ensure the backend is running at http://localhost:5000.");
+        }
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Invalid server response (Status ${response.status})`);
+      }
+      
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || "Backend returned an unsuccessful status.");
+      }
+      
+      if (!data.user) {
+        throw new Error("Invalid server response: User profile is missing.");
+      }
+      
+      if (data.isNewUser) {
+        setFormData(prev => ({
+          ...prev,
+          name: data.user.name || prev.name,
+          email: data.user.email || prev.email,
+          avatar: data.user.avatar || prev.avatar,
+          uid: data.user.uid || prev.uid,
+          password: '',
+          confirmPassword: ''
+        }));
+        setStep(2);
+        setIsLoginMode(false);
+      } else {
+        onLogin(data.user);
+      }
+    } catch (err) {
+      console.error(err);
+      if (err.code && err.code.startsWith('auth/')) {
+        if (err.code === 'auth/popup-closed-by-user') {
+          setError("Firebase authentication error: Sign-in popup closed before completion.");
+        } else if (err.code === 'auth/cancelled-popup-request') {
+          setError("Firebase authentication error: Popup sign-in request cancelled.");
+        } else if (err.code === 'auth/popup-blocked') {
+          setError("Firebase authentication error: Sign-in popup was blocked by the browser.");
+        } else {
+          setError(`Firebase authentication error: ${err.message}`);
+        }
+      } else {
+        setError(err.message || "An error occurred during authentication.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Onboarding Profile State
   const [formData, setFormData] = useState({
@@ -37,8 +122,8 @@ export default function LoginPage({ onLogin }) {
     targetRole: '',
     experienceLevel: 'Fresher',
     timeline: 'Immediate', // Immediate, 1 Month, 3 Months, Exploring
-    skills: ['Python', 'React', 'SQL', 'System Design'],
-    weakAreas: ['Algorithms', 'Behavioral Prep'],
+    skills: [],
+    weakAreas: [],
     avatar: '👨‍💻'
   });
 
@@ -80,13 +165,85 @@ export default function LoginPage({ onLogin }) {
     });
   };
 
+  const passwordRules = {
+    minLength: formData.password.length >= 8,
+    hasUppercase: /[A-Z]/.test(formData.password),
+    hasLowercase: /[a-z]/.test(formData.password),
+    hasNumber: /\d/.test(formData.password),
+    hasSpecial: /[@$!%*?&#^()_+\-=[\]{};':"\\|,.<>/?]/.test(formData.password),
+  };
+
+  const isNameValid = formData.name.trim().length > 0;
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
+  const isPasswordValid = 
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/.test(formData.password) &&
+    !/\s/.test(formData.password);
+  const isConfirmPasswordValid = formData.password === formData.confirmPassword;
+
+  const isStep1Valid = isNameValid && isEmailValid && isPasswordValid && isConfirmPasswordValid;
+
+  const getPasswordStrength = () => {
+    const pwd = formData.password;
+    if (!pwd) return { score: 0, label: 'Weak', color: 'bg-danger' };
+    
+    let score = 0;
+    if (pwd.length >= 8) score++;
+    if (/[A-Z]/.test(pwd)) score++;
+    if (/[a-z]/.test(pwd)) score++;
+    if (/\d/.test(pwd)) score++;
+    if (/[@$!%*?&#^()_+\-=[\]{};':"\\|,.<>/?]/.test(pwd)) score++;
+    
+    let label = 'Weak';
+    let color = 'bg-danger';
+    
+    if (score === 2) {
+      label = 'Fair';
+      color = 'bg-orange-500';
+    } else if (score === 3) {
+      label = 'Good';
+      color = 'bg-warning';
+    } else if (score === 4) {
+      label = 'Strong';
+      color = 'bg-secondary';
+    } else if (score === 5) {
+      if (!/\s/.test(pwd)) {
+        label = 'Very Strong';
+        color = 'bg-success';
+      } else {
+        label = 'Strong';
+        color = 'bg-secondary';
+      }
+    }
+    
+    return { score, label, color };
+  };
+
+  const renderChecklistItem = (label, isSatisfied) => {
+    let icon = "✓";
+    let colorClass = "text-textSecondary"; // gray
+    
+    if (isSatisfied) {
+      colorClass = "text-success"; // green
+      icon = "✓";
+    } else if (passwordTouched) {
+      colorClass = "text-danger"; // red
+      icon = "✗";
+    }
+    
+    return (
+      <div className={`flex items-center gap-2 text-xs font-semibold ${colorClass} transition-colors duration-200`}>
+        <span className="text-sm font-bold">{icon}</span>
+        <span>{label}</span>
+      </div>
+    );
+  };
+
   // Step Navigations & Validations
   const validateStep1 = () => {
-    if (!formData.name.trim()) return "Full name is required.";
-    if (!formData.email.trim()) return "Email address is required.";
-    if (!formData.password) return "Password is required.";
-    if (formData.password.length < 6) return "Password must be at least 6 characters.";
-    if (formData.password !== formData.confirmPassword) return "Passwords do not match.";
+    if (!isNameValid) return "Full name is required.";
+    if (!isEmailValid) return "Invalid email address.";
+    if (!isPasswordValid) return "Password does not meet all requirements.";
+    if (!isConfirmPasswordValid) return "Passwords do not match.";
     return null;
   };
 
@@ -130,7 +287,10 @@ export default function LoginPage({ onLogin }) {
         target_role: formData.targetRole,
         experience_level: formData.experienceLevel,
         graduation_year: formData.graduationYear,
-        weak_areas: formData.weakAreas
+        weak_areas: formData.weakAreas,
+        onboardingCompleted: true,
+        coreStrengths: formData.skills,
+        areasOfDevelopment: formData.weakAreas
       };
 
       const response = await fetch("http://localhost:5000/api/user/save", {
@@ -157,6 +317,9 @@ export default function LoginPage({ onLogin }) {
         timeline: formData.timeline,
         skills: formData.skills,
         weakAreas: formData.weakAreas,
+        coreStrengths: formData.skills,
+        areasOfDevelopment: formData.weakAreas,
+        onboardingCompleted: true,
         createdAt: new Date().toISOString()
       };
 
@@ -267,7 +430,7 @@ export default function LoginPage({ onLogin }) {
                 <div className="space-y-3">
                   <button
                     type="button"
-                    onClick={() => onLogin({ name: 'Shreya Adsul', email: 'shreya.adsul@gmail.com', avatar: '👩‍💻' })}
+                    onClick={handleGoogleSignIn}
                     className="w-full h-14 border border-[#E5E7EB] hover:bg-gray-50 bg-white rounded-2xl flex items-center justify-center gap-3 transition-all duration-200 hover:-translate-y-0.5 active:translate-y-0 text-sm font-semibold text-textPrimary"
                   >
                     <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -485,6 +648,31 @@ export default function LoginPage({ onLogin }) {
                   <p className="text-textSecondary text-xs font-semibold mt-1">Setup your access credentials to save your progress</p>
                 </div>
 
+                {/* Continue with Google button */}
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  className="w-full h-[52px] border border-[#E5E7EB] hover:bg-gray-50 bg-white rounded-[14px] flex items-center justify-center gap-3 transition-all duration-200 hover:shadow-md text-sm font-semibold text-textPrimary mt-4"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <path fill="#EA4335" d="M12 5.04c1.7 0 3.2.6 4.4 1.7l3.3-3.3C17.7 1.5 15 1 12 1 7.3 1 3.3 3.7 1.4 7.6l3.9 3C6.3 7.8 8.9 5.04 12 5.04z" />
+                    <path fill="#4285F4" d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.3 3.6l3.6 2.8c2.1-2 3.7-4.9 3.7-8.7z" />
+                    <path fill="#FBBC05" d="M5.3 10.6c-.3-.9-.4-1.8-.4-2.6 0-.8.1-1.7.4-2.6L1.4 2.4C.5 4.1 0 6 0 8s.5 3.9 1.4 5.6l3.9-3z" />
+                    <path fill="#34A853" d="M12 23c3.2 0 6-1.1 8-2.9l-3.6-2.8c-1.2.8-2.7 1.3-4.4 1.3-3.1 0-5.7-2.1-6.7-5l-3.9 3C3.3 20.3 7.3 23 12 23z" />
+                  </svg>
+                  <span>Continue with Google</span>
+                </button>
+
+                {/* OR divider */}
+                <div className="relative flex items-center justify-center my-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-[#E5E7EB]" />
+                  </div>
+                  <span className="relative px-3 bg-white text-xs font-semibold text-textSecondary uppercase tracking-widest">
+                    OR
+                  </span>
+                </div>
+
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-textPrimary">
@@ -495,10 +683,17 @@ export default function LoginPage({ onLogin }) {
                       name="name"
                       value={formData.name}
                       onChange={handleOnboardingChange}
+                      onBlur={() => setNameTouched(true)}
                       placeholder="Enter your full name"
                       className="w-full h-14 bg-white border border-[#E5E7EB] focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-2xl px-4 text-sm text-textPrimary placeholder-gray-400 focus:outline-none transition-all duration-200"
                       required
                     />
+                    {nameTouched && !formData.name.trim() && (
+                      <div className="text-xs font-bold mt-1 text-danger flex items-center gap-1.5">
+                        <span>✗</span>
+                        <span>Full Name is required</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
@@ -510,10 +705,19 @@ export default function LoginPage({ onLogin }) {
                       name="email"
                       value={formData.email}
                       onChange={handleOnboardingChange}
+                      onBlur={() => setEmailTouched(true)}
                       placeholder="Enter your email"
                       className="w-full h-14 bg-white border border-[#E5E7EB] focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-2xl px-4 text-sm text-textPrimary placeholder-gray-400 focus:outline-none transition-all duration-200"
                       required
                     />
+                    {(emailTouched || formData.email) && (
+                      <div className={`text-xs font-bold mt-1 flex items-center gap-1.5 ${
+                        isEmailValid ? 'text-success' : 'text-danger'
+                      }`}>
+                        <span>{isEmailValid ? '✓' : '✗'}</span>
+                        <span>{isEmailValid ? 'Valid email' : 'Invalid email address'}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -521,31 +725,108 @@ export default function LoginPage({ onLogin }) {
                       <label className="text-xs font-bold text-textPrimary">
                         Password *
                       </label>
-                      <input 
-                        type="password" 
-                        name="password"
-                        value={formData.password}
-                        onChange={handleOnboardingChange}
-                        placeholder="••••••••"
-                        className="w-full h-14 bg-white border border-[#E5E7EB] focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-2xl px-4 text-sm text-textPrimary placeholder-gray-400 focus:outline-none transition-all duration-200"
-                        required
-                      />
+                      <div className="relative">
+                        <input 
+                          type={showOnboardingPassword ? "text" : "password"} 
+                          name="password"
+                          value={formData.password}
+                          onChange={handleOnboardingChange}
+                          onBlur={() => setPasswordTouched(true)}
+                          placeholder="••••••••"
+                          className="w-full h-14 bg-white border border-[#E5E7EB] focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-2xl pl-4 pr-10 text-sm text-textPrimary placeholder-gray-400 focus:outline-none transition-all duration-200"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowOnboardingPassword(!showOnboardingPassword)}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-textSecondary hover:text-textPrimary transition-colors"
+                        >
+                          {showOnboardingPassword ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                      {/\s/.test(formData.password) && (
+                        <div className="text-xs font-bold mt-1 text-danger flex items-center gap-1.5">
+                          <span>✗</span>
+                          <span>No spaces allowed in password</span>
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-textPrimary">
                         Confirm Password *
                       </label>
-                      <input 
-                        type="password" 
-                        name="confirmPassword"
-                        value={formData.confirmPassword}
-                        onChange={handleOnboardingChange}
-                        placeholder="••••••••"
-                        className="w-full h-14 bg-white border border-[#E5E7EB] focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-2xl px-4 text-sm text-textPrimary placeholder-gray-400 focus:outline-none transition-all duration-200"
-                        required
-                      />
+                      <div className="relative">
+                        <input 
+                          type={showOnboardingConfirmPassword ? "text" : "password"} 
+                          name="confirmPassword"
+                          value={formData.confirmPassword}
+                          onChange={handleOnboardingChange}
+                          onBlur={() => setConfirmPasswordTouched(true)}
+                          placeholder="••••••••"
+                          className="w-full h-14 bg-white border border-[#E5E7EB] focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-2xl pl-4 pr-10 text-sm text-textPrimary placeholder-gray-400 focus:outline-none transition-all duration-200"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowOnboardingConfirmPassword(!showOnboardingConfirmPassword)}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 text-textSecondary hover:text-textPrimary transition-colors"
+                        >
+                          {showOnboardingConfirmPassword ? (
+                            <EyeOff className="w-4 h-4" />
+                          ) : (
+                            <Eye className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                      {(confirmPasswordTouched || formData.confirmPassword) && (
+                        <div className={`text-xs font-bold mt-1 flex items-center gap-1.5 ${
+                          isConfirmPasswordValid ? 'text-success' : 'text-danger'
+                        }`}>
+                          <span>{isConfirmPasswordValid ? '✓' : '✗'}</span>
+                          <span>{isConfirmPasswordValid ? 'Passwords match' : 'Passwords do not match'}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
+
+                  {/* Password Checklist & Strength indicator */}
+                  {formData.password && (
+                    <div className="space-y-3 mt-3 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                      <div className="text-xs font-bold text-textPrimary mb-1">Password Requirements:</div>
+                      {renderChecklistItem("Minimum 8 characters", passwordRules.minLength)}
+                      {renderChecklistItem("One uppercase letter", passwordRules.hasUppercase)}
+                      {renderChecklistItem("One lowercase letter", passwordRules.hasLowercase)}
+                      {renderChecklistItem("One number", passwordRules.hasNumber)}
+                      {renderChecklistItem("One special character", passwordRules.hasSpecial)}
+                      
+                      {/* Strength indicator */}
+                      <div className="space-y-1.5 pt-2 border-t border-gray-200/50">
+                        <div className="flex justify-between items-center text-xs font-bold text-textPrimary">
+                          <span>Password Strength:</span>
+                          <span className={`font-extrabold ${
+                            getPasswordStrength().score <= 1 ? 'text-danger' :
+                            getPasswordStrength().score === 2 ? 'text-orange-500' :
+                            getPasswordStrength().score === 3 ? 'text-warning' :
+                            getPasswordStrength().score === 4 ? 'text-secondary' : 'text-success'
+                          }`}>{getPasswordStrength().label}</span>
+                        </div>
+                        <div className="flex gap-1 h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                          {[1, 2, 3, 4, 5].map((index) => (
+                            <div 
+                              key={index}
+                              className={`h-full flex-1 transition-all duration-300 ${
+                                index <= getPasswordStrength().score ? getPasswordStrength().color : 'bg-gray-300'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex gap-4 pt-4">
@@ -557,7 +838,8 @@ export default function LoginPage({ onLogin }) {
                   </button>
                   <button 
                     onClick={handleNext}
-                    className="flex-1 h-14 rounded-2xl bg-primary hover:bg-primary/95 text-white font-bold text-sm transition-all flex items-center justify-center gap-1.5 group"
+                    disabled={!isStep1Valid}
+                    className="flex-1 h-14 rounded-2xl bg-primary hover:bg-primary/95 text-white font-bold text-sm transition-all flex items-center justify-center gap-1.5 group disabled:opacity-50 disabled:pointer-events-none"
                   >
                     Next <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                   </button>
@@ -729,24 +1011,36 @@ export default function LoginPage({ onLogin }) {
 
                   <div className="space-y-1.5 pt-2 border-t border-gray-200/85">
                     <span className="text-[9px] text-textSecondary uppercase font-bold tracking-wider block">Core Strengths</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {formData.skills.map(skill => (
-                        <span key={skill} className="px-2 py-0.5 bg-white border border-[#E5E7EB] text-textSecondary rounded-md text-[10px] font-semibold">
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
+                    {formData.skills && formData.skills.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {formData.skills.map(skill => (
+                          <span key={skill} className="px-2 py-0.5 bg-white border border-[#E5E7EB] text-textSecondary rounded-md text-[10px] font-semibold">
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-textSecondary leading-normal">
+                        Not selected yet. This will be identified automatically after Resume Analysis and Mock Interviews.
+                      </p>
+                    )}
                   </div>
 
                   <div className="space-y-1.5">
                     <span className="text-[9px] text-textSecondary uppercase font-bold tracking-wider block">Areas of Development</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {formData.weakAreas.map(area => (
-                        <span key={area} className="px-2 py-0.5 bg-white border border-[#E5E7EB] text-textSecondary rounded-md text-[10px] font-semibold">
-                          {area}
-                        </span>
-                      ))}
-                    </div>
+                    {formData.weakAreas && formData.weakAreas.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {formData.weakAreas.map(area => (
+                          <span key={area} className="px-2 py-0.5 bg-white border border-[#E5E7EB] text-textSecondary rounded-md text-[10px] font-semibold">
+                            {area}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-textSecondary leading-normal">
+                        Not available yet. AI will recommend improvement areas after evaluating your resume and interview performance.
+                      </p>
+                    )}
                   </div>
                 </div>
 
