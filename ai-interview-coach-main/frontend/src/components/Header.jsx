@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, Plus, Edit2, Check, CheckCircle2, AlertCircle, User, Briefcase, GraduationCap, FileText, Settings, LogOut, Search } from 'lucide-react';
+import { Bell, Plus, Edit2, Check, CheckCircle2, AlertCircle, User, Briefcase, GraduationCap, FileText, Settings, LogOut, Search, X, ChevronRight } from 'lucide-react';
 
-export default function Header({ userName = 'Shreya Adsul', avatar, onNewInterview, onNameChange, onLogout, currentPage, resumeData = {}, setCurrentPage }) {
+export default function Header({ userName = 'Shreya Adsul', avatar, onNewInterview, onNameChange, onLogout, currentPage, resumeData = {}, setCurrentPage, interviewHistory = [], onSelectReport }) {
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(userName);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -9,6 +9,7 @@ export default function Header({ userName = 'Shreya Adsul', avatar, onNewIntervi
   
   const notifRef = useRef(null);
   const profileRef = useRef(null);
+  const searchRef = useRef(null);
 
   const firstName = userName.split(' ')[0];
 
@@ -26,6 +27,32 @@ export default function Header({ userName = 'Shreya Adsul', avatar, onNewIntervi
     setNotifications(notifications.map(n => ({ ...n, read: true })));
   };
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearchResults, setShowSearchResults] = useState(false);
+
+  const navigationActions = [
+    { label: "Go to Dashboard", page: "Dashboard", category: "Navigation" },
+    { label: "Go to Resume Analysis", page: "Resume Analysis", category: "Navigation" },
+    { label: "Go to Mock Interview", page: "Mock Interview", category: "Navigation" },
+    { label: "Go to ATS Checker", page: "ATS Checker", category: "Navigation" },
+    { label: "Go to Interview History", page: "Interview History", category: "Navigation" },
+    { label: "Go to Settings", page: "Settings", category: "Navigation" },
+    { label: "Start a New Interview", page: "NewInterviewAction", category: "Actions" },
+  ];
+
+  const filteredActions = navigationActions.filter(action =>
+    action.label.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredHistory = (interviewHistory || []).filter(item => {
+    const roleMatch = (item.role || item.target_role || "").toLowerCase().includes(searchQuery.toLowerCase());
+    const typeMatch = (item.interview_type || item.type || "").toLowerCase().includes(searchQuery.toLowerCase());
+    const difficultyMatch = (item.difficulty || "").toLowerCase().includes(searchQuery.toLowerCase());
+    return roleMatch || typeMatch || difficultyMatch;
+  });
+
+  const hasResults = filteredActions.length > 0 || filteredHistory.length > 0;
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (notifRef.current && !notifRef.current.contains(event.target)) {
@@ -33,6 +60,9 @@ export default function Header({ userName = 'Shreya Adsul', avatar, onNewIntervi
       }
       if (profileRef.current && !profileRef.current.contains(event.target)) {
         setShowProfile(false);
+      }
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowSearchResults(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -50,14 +80,9 @@ export default function Header({ userName = 'Shreya Adsul', avatar, onNewIntervi
 
   return (
     <header className="flex items-center justify-between py-2.5 px-8 ml-[260px] bg-white sticky top-0 z-40 border-b border-[#E5E7EB] min-h-[56px] h-[56px]">
-      {/* Left side: Search bar (No oversized welcome banner) */}
-      <div className="relative w-[420px]">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-textSecondary/60" />
-        <input 
-          type="text" 
-          placeholder="Search dashboard, actions, or history..."
-          className="w-full pl-9 pr-4 py-2 bg-gray-50/50 border border-[#E5E7EB] focus:border-primary/50 focus:ring-1 focus:ring-primary/20 rounded-xl text-xs text-textPrimary focus:outline-none placeholder-gray-400 font-medium"
-        />
+      {/* Left side: Greeting */}
+      <div className="text-lg font-bold text-textPrimary">
+        Hi, {firstName} 👋
       </div>
 
       <div className="flex items-center gap-4">
@@ -110,9 +135,13 @@ export default function Header({ userName = 'Shreya Adsul', avatar, onNewIntervi
           >
             {avatar ? (
               <div 
-                className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-lg hover:ring-2 hover:ring-primary/30 transition-all select-none"
+                className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-lg hover:ring-2 hover:ring-primary/30 transition-all select-none overflow-hidden"
               >
-                {avatar}
+                {avatar.startsWith('data:') || avatar.startsWith('http') ? (
+                  <img src={avatar} alt="User Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  avatar
+                )}
               </div>
             ) : (
               <img 
@@ -132,8 +161,12 @@ export default function Header({ userName = 'Shreya Adsul', avatar, onNewIntervi
               <div className="p-5 border-b border-[#E5E7EB] bg-gray-50">
                 <div className="flex items-center gap-4">
                   {avatar ? (
-                    <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-2xl select-none">
-                      {avatar}
+                    <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-2xl select-none overflow-hidden">
+                      {avatar.startsWith('data:') || avatar.startsWith('http') ? (
+                        <img src={avatar} alt="User Avatar" className="w-full h-full object-cover" />
+                      ) : (
+                        avatar
+                      )}
                     </div>
                   ) : (
                     <img 

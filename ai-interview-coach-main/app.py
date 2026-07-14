@@ -1326,6 +1326,7 @@ def save_settings():
                 "user_id": user_id,
                 "profile": profile_data,
                 "preferences": data.get("preferences", {}),
+                "interview": data.get("interview", {}),
                 "theme": data.get("theme", "dark"),
                 "notifications": data.get("notifications", {}),
                 "timestamp": time.time()

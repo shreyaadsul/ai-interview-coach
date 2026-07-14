@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, CheckCircle, Video, Camera } from 'lucide-react';
+import { Play, CheckCircle, Camera } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function InterviewBriefingPage({ sessionConfig, resumeData, onBegin, onCameraReady }) {
@@ -39,98 +39,119 @@ export default function InterviewBriefingPage({ sessionConfig, resumeData, onBeg
 
   return (
     <div className="space-y-8">
+      {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+        <h1 className="text-3xl font-extrabold text-textPrimary tracking-tight">
           Interview Briefing
         </h1>
-        <p className="text-gray-400 text-sm mt-1">Review your AI-generated interview parameters before starting.</p>
+        <p className="text-textSecondary text-sm mt-1">Review your AI-generated interview parameters before starting.</p>
       </div>
 
-      <div className="glass p-8 border border-white/10 rounded-2xl grid grid-cols-1 md:grid-cols-2 gap-8">
+      {/* Grid Container */}
+      <div className="bg-white border border-[#E5E7EB] p-8 rounded-2xl shadow-[0_4px_16px_rgba(0,0,0,0.06)] grid grid-cols-1 md:grid-cols-2 gap-8">
+        
+        {/* Left: Proctoring Instructions */}
         <div className="space-y-6">
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white border-b border-white/10 pb-2">Proctoring Instructions</h3>
-            <div className="space-y-4 text-sm text-gray-300">
+            <h3 className="text-base font-bold text-textPrimary border-b border-gray-100 pb-2">Proctoring Instructions</h3>
+            <div className="space-y-4 text-xs">
               <div className="flex items-start gap-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
-                <p><span className="text-white font-medium">Fullscreen Mode:</span> The interview will automatically enter fullscreen. Do not exit fullscreen or use the Escape key.</p>
+                <p className="text-textSecondary leading-relaxed font-semibold">
+                  <span className="text-textPrimary font-bold">Fullscreen Mode:</span> The interview will automatically enter fullscreen. Do not exit fullscreen or use the Escape key.
+                </p>
               </div>
               <div className="flex items-start gap-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
-                <p><span className="text-white font-medium">Focus Tracking:</span> Switching tabs, minimizing the browser, or clicking outside the window will trigger a violation warning.</p>
+                <p className="text-textSecondary leading-relaxed font-semibold">
+                  <span className="text-textPrimary font-bold">Focus Tracking:</span> Switching tabs, minimizing the browser, or clicking outside the window will trigger a violation warning.
+                </p>
               </div>
               <div className="flex items-start gap-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-danger mt-1.5 flex-shrink-0" />
-                <p><span className="text-danger font-medium">3-Strikes Rule:</span> Accumulating 3 warnings will result in immediate termination of the mock interview.</p>
+                <p className="text-textSecondary leading-relaxed font-semibold">
+                  <span className="text-danger font-bold">3-Strikes Rule:</span> Accumulating 3 warnings will result in immediate termination of the mock interview.
+                </p>
               </div>
               <div className="flex items-start gap-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
-                <p><span className="text-white font-medium">No Copy-Pasting:</span> Copying and pasting text is strictly disabled to ensure original answers.</p>
+                <p className="text-textSecondary leading-relaxed font-semibold">
+                  <span className="text-textPrimary font-bold">No Copy-Pasting:</span> Copying and pasting text is strictly disabled to ensure original answers.
+                </p>
               </div>
               <div className="flex items-start gap-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-warning mt-1.5 flex-shrink-0" />
-                <p><span className="text-warning font-medium">AI Head Tracking:</span> MediaPipe AI will actively track your face. Looking away from the screen will trigger a warning.</p>
+                <p className="text-textSecondary leading-relaxed font-semibold">
+                  <span className="text-warning font-bold">AI Head Tracking:</span> MediaPipe AI will actively track your face. Looking away from the screen will trigger a warning.
+                </p>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="space-y-6">
+        {/* Right: Interview Setup Details */}
+        <div className="space-y-6 border-t border-gray-100 pt-6 md:border-t-0 md:pt-0">
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white border-b border-white/10 pb-2">Interview Setup</h3>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-400">Target Role</span>
-              <span className="text-white font-medium">{sessionConfig.target_role}</span>
+            <h3 className="text-base font-bold text-textPrimary border-b border-gray-100 pb-2">Interview Setup</h3>
+            
+            <div className="flex justify-between items-center py-1">
+              <span className="text-textSecondary text-xs font-bold uppercase tracking-wider">Target Role</span>
+              <span className="text-textPrimary text-sm font-bold">{sessionConfig.target_role}</span>
             </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-400">Interview Type</span>
-              <span className="text-white font-medium">{sessionConfig.interview_type}</span>
+            
+            <div className="flex justify-between items-center py-1 border-t border-gray-50">
+              <span className="text-textSecondary text-xs font-bold uppercase tracking-wider">Interview Type</span>
+              <span className="text-textPrimary text-sm font-bold">{sessionConfig.interview_type}</span>
             </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-400">Difficulty</span>
-              <span className="text-white font-medium">{sessionConfig.difficulty}</span>
+            
+            <div className="flex justify-between items-center py-1 border-t border-gray-50">
+              <span className="text-textSecondary text-xs font-bold uppercase tracking-wider">Difficulty</span>
+              <span className="text-textPrimary text-sm font-bold">{sessionConfig.difficulty}</span>
             </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-400">Questions Count</span>
-              <span className="text-white font-medium">20 Questions (6 Stages)</span>
+            
+            <div className="flex justify-between items-center py-1 border-t border-gray-50">
+              <span className="text-textSecondary text-xs font-bold uppercase tracking-wider">Questions Count</span>
+              <span className="text-textPrimary text-sm font-bold">20 Questions (6 Stages)</span>
             </div>
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-gray-400">Estimated Duration</span>
-              <span className="text-primary font-medium">15-20 Minutes</span>
+            
+            <div className="flex justify-between items-center py-1 border-t border-gray-50">
+              <span className="text-textSecondary text-xs font-bold uppercase tracking-wider">Estimated Duration</span>
+              <span className="text-primary text-sm font-bold">{sessionConfig.questions_count || "15-20 Minutes"}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="flex justify-between items-center pt-4 border-t border-white/10">
-        <div className="flex items-center gap-4">
+      {/* Footer controls */}
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 pt-6 border-t border-gray-100">
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
           {!cameraReady ? (
             <button 
               onClick={handleTestCamera}
               disabled={testingCamera}
-              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-white/10 text-white font-semibold hover:bg-white/20 transition-all focus:outline-none"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 text-textSecondary hover:text-textPrimary font-bold text-xs transition-all shadow-sm focus:outline-none"
             >
-              <Camera className="w-5 h-5" />
+              <Camera className="w-4 h-4 text-textSecondary" />
               {testingCamera ? "Testing..." : "Enable Camera Access"}
             </button>
           ) : (
-            <div className="flex items-center gap-2 px-6 py-3 rounded-xl bg-success/10 text-success font-semibold">
-              <CheckCircle className="w-5 h-5" />
+            <div className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 border border-success/20 rounded-xl bg-success/5 text-success text-xs font-bold shadow-sm">
+              <CheckCircle className="w-4 h-4 text-success" />
               Camera Ready
             </div>
           )}
           {!cameraReady && (
-            <p className="text-xs text-gray-400">Camera access is required for AI Proctoring.</p>
+            <p className="text-xs font-semibold text-textSecondary text-center sm:text-left">Camera access is required for AI Proctoring.</p>
           )}
         </div>
 
         <button 
           onClick={handleBegin}
           disabled={!cameraReady}
-          className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-bold hover:shadow-lg hover:shadow-primary/25 transition-all duration-300 transform hover:-translate-y-0.5 disabled:opacity-50 disabled:pointer-events-none"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-primary hover:bg-[#4F46E5]/95 text-white font-bold text-xs transition-all shadow-sm hover:translate-y-[-1px] disabled:opacity-50 disabled:pointer-events-none"
         >
           Begin Interview
-          <Play className="w-5 h-5 ml-1" />
+          <Play className="w-4 h-4 ml-1 text-white fill-white" />
         </button>
       </div>
     </div>

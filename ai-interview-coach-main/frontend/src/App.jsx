@@ -154,10 +154,30 @@ function App() {
       } catch (err) {
         console.error("Failed to fetch career insights from MongoDB", err);
       }
+
+      // Load User Settings / Profile (to sync avatar and profile photo)
+      try {
+        const response = await fetch(`http://localhost:5000/api/settings?user_id=${encodeURIComponent(userId)}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.profile) {
+            setUserProfile(prev => {
+              const updated = {
+                ...prev,
+                ...data.profile
+              };
+              localStorage.setItem('userProfile', JSON.stringify(updated));
+              return updated;
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch settings from MongoDB", err);
+      }
     };
 
     fetchUserData();
-  }, [userProfile]);
+  }, [userProfile?.email]);
 
   // Pre-load text-to-speech voices globally
   useEffect(() => {
@@ -467,6 +487,27 @@ function App() {
           currentPage={currentPage}
           resumeData={resumeData}
           setCurrentPage={setCurrentPage}
+          interviewHistory={interviewHistory}
+          onSelectReport={async (session) => {
+            let reportToUse = session.report;
+            if (!reportToUse && session.id) {
+              try {
+                const response = await fetch(`http://localhost:5000/api/interview/${session.id}?user_id=${encodeURIComponent(userProfile?.email || "")}`);
+                if (response.ok) {
+                  const data = await response.json();
+                  reportToUse = data.report;
+                }
+              } catch(err) {
+                console.error("Failed to fetch report from MongoDB", err);
+              }
+            }
+            if (reportToUse) {
+              setCurrentReport(reportToUse);
+              setCurrentPage('Interview Report');
+            } else {
+              alert("Detailed report not available for this session.");
+            }
+          }}
         />
         
         <InterviewSetupModal 
@@ -485,32 +526,6 @@ function App() {
               transition={{ duration: 0.5 }}
               className="max-w-7xl mx-auto space-y-8"
             >
-              {/* Compact Hero Section (exactly 90px height) */}
-              <div className="bg-white border border-[#E5E7EB] px-8 h-[90px] rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] flex items-center justify-between transition-all duration-200">
-                <div className="space-y-1">
-                  <h1 className="text-2xl font-extrabold text-textPrimary tracking-tight">
-                    Welcome back, {userProfile?.name || "Shreya"} 👋
-                  </h1>
-                  <p className="text-textSecondary text-xs font-semibold">
-                    Continue preparing for your next interview.
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button 
-                    onClick={() => setShowSetupModal(true)}
-                    className="px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/95 text-white font-bold text-xs transition-all shadow-sm flex items-center gap-2 hover:translate-y-[-1px]"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-white" /> Start Mock Interview
-                  </button>
-                  <button 
-                    onClick={() => setCurrentPage('Resume Analysis')}
-                    className="px-5 py-2.5 rounded-xl border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 text-textSecondary hover:text-textPrimary font-bold text-xs transition-all shadow-sm flex items-center gap-2"
-                  >
-                    <Upload className="w-3.5 h-3.5" /> Upload Resume
-                  </button>
-                </div>
-              </div>
-
               {/* Quick Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* 1. Resume Score */}

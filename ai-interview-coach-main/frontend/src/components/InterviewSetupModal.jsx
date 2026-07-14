@@ -40,84 +40,98 @@ export default function InterviewSetupModal({ isOpen, onClose, onStart, resumeDa
     }
   };
 
-  const estimatedDuration = 30;
-
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-navy-900/80 backdrop-blur-sm">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-navy-800 border border-white/10 rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden"
+          className="bg-white border border-[#E5E7EB] rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.08)] w-full max-w-xl overflow-hidden"
         >
-          <div className="flex items-center justify-between p-6 border-b border-white/5">
-            <h2 className="text-xl font-bold text-white">Configure Interview</h2>
-            <button onClick={onClose} disabled={isGenerating} className="p-2 text-gray-400 hover:text-white transition-colors">
+          {/* Modal Header */}
+          <div className="flex items-center justify-between p-6 border-b border-[#E5E7EB] bg-gray-50/50">
+            <h2 className="text-lg font-bold text-textPrimary">Configure Interview</h2>
+            <button onClick={onClose} disabled={isGenerating} className="p-2 text-textSecondary hover:text-textPrimary transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
 
+          {/* Modal Body */}
           <div className="p-6 space-y-6">
             {/* Target Role */}
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-300">Target Role</label>
-              <select 
-                value={targetRole}
-                onChange={(e) => setTargetRole(e.target.value)}
-                className="w-full bg-navy-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary/50"
-              >
-                <option value="AI Engineer">AI Engineer</option>
-                <option value="Machine Learning Engineer">Machine Learning Engineer</option>
-                <option value="Data Scientist">Data Scientist</option>
-                <option value="Python Developer">Python Developer</option>
-                <option value="Backend Developer">Backend Developer</option>
-                <option value="Frontend Developer">Frontend Developer</option>
-              </select>
+            <div className="space-y-2 flex flex-col">
+              <label className="text-xs font-bold text-textSecondary uppercase tracking-wider">Target Role</label>
+              <div className="relative">
+                <select 
+                  value={targetRole}
+                  onChange={(e) => setTargetRole(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 hover:border-primary/30 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 rounded-xl text-textPrimary text-sm focus:outline-none transition-all duration-300 appearance-none cursor-pointer"
+                >
+                  <option value="AI Engineer" className="bg-white text-textPrimary">AI Engineer</option>
+                  <option value="Machine Learning Engineer" className="bg-white text-textPrimary">Machine Learning Engineer</option>
+                  <option value="Data Scientist" className="bg-white text-textPrimary">Data Scientist</option>
+                  <option value="Python Developer" className="bg-white text-textPrimary">Python Developer</option>
+                  <option value="Backend Developer" className="bg-white text-textPrimary">Backend Developer</option>
+                  <option value="Frontend Developer" className="bg-white text-textPrimary">Frontend Developer</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-textSecondary">
+                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                  </svg>
+                </div>
+              </div>
             </div>
 
             {/* Interview Type */}
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-300">Interview Type</label>
+              <label className="text-xs font-bold text-textSecondary uppercase tracking-wider">Interview Type</label>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {['HR', 'Technical', 'Project Based', 'Mixed'].map(type => (
-                  <label key={type} className={`cursor-pointer border rounded-xl py-2 px-3 text-center text-sm transition-all duration-300 ${interviewType === type ? 'bg-primary/20 border-primary text-primary font-semibold' : 'border-white/10 text-gray-400 hover:border-white/30'}`}>
-                    <input type="radio" className="hidden" name="type" value={type} checked={interviewType === type} onChange={() => setInterviewType(type)} />
-                    {type}
-                  </label>
-                ))}
+                {['HR', 'Technical', 'Project Based', 'Mixed'].map(type => {
+                  const isSelected = interviewType === type;
+                  return (
+                    <label key={type} className={`cursor-pointer border rounded-xl py-2.5 px-3 text-center text-xs font-bold transition-all duration-200 ${isSelected ? 'bg-primary/5 border-primary text-primary font-extrabold shadow-sm' : 'border-gray-200 text-textSecondary hover:border-gray-300 hover:text-textPrimary hover:bg-gray-50'}`}>
+                      <input type="radio" className="hidden" name="type" value={type} checked={isSelected} onChange={() => setInterviewType(type)} />
+                      {type}
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
             {/* Difficulty */}
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-300">Difficulty</label>
+              <label className="text-xs font-bold text-textSecondary uppercase tracking-wider">Difficulty</label>
               <div className="grid grid-cols-3 gap-3">
-                {['Beginner', 'Intermediate', 'Advanced'].map(diff => (
-                  <label key={diff} className={`cursor-pointer border rounded-xl py-2 px-3 text-center text-sm transition-all duration-300 ${difficulty === diff ? 'bg-primary/20 border-primary text-primary font-semibold' : 'border-white/10 text-gray-400 hover:border-white/30'}`}>
-                    <input type="radio" className="hidden" name="diff" value={diff} checked={difficulty === diff} onChange={() => setDifficulty(diff)} />
-                    {diff}
-                  </label>
-                ))}
+                {['Beginner', 'Intermediate', 'Advanced'].map(diff => {
+                  const isSelected = difficulty === diff;
+                  return (
+                    <label key={diff} className={`cursor-pointer border rounded-xl py-2.5 px-3 text-center text-xs font-bold transition-all duration-200 ${isSelected ? 'bg-primary/5 border-primary text-primary font-extrabold shadow-sm' : 'border-gray-200 text-textSecondary hover:border-gray-300 hover:text-textPrimary hover:bg-gray-50'}`}>
+                      <input type="radio" className="hidden" name="diff" value={diff} checked={isSelected} onChange={() => setDifficulty(diff)} />
+                      {diff}
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
             {/* Duration */}
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-200">Duration</label>
-              <div className="w-full p-3 bg-navy-900/50 border border-white/10 rounded-xl text-white font-medium flex items-center">
+              <label className="text-xs font-bold text-textSecondary uppercase tracking-wider">Duration</label>
+              <div className="w-full p-3.5 bg-gray-50 border border-gray-200 rounded-xl text-textPrimary text-xs font-bold flex items-center">
                 Estimated 15-20 Minutes
               </div>
-              <p className="text-xs text-primary/80 mt-1">Structured 6-Stage Interview Process (20 Questions)</p>
+              <p className="text-xs font-semibold text-primary mt-1.5">Structured 6-Stage Interview Process (20 Questions)</p>
             </div>
           </div>
 
-          <div className="p-6 border-t border-white/5 bg-navy-900/50 flex justify-end gap-4">
-            <button onClick={onClose} disabled={isGenerating} className="px-5 py-2.5 rounded-xl text-gray-400 hover:text-white font-medium transition-colors">
+          {/* Modal Footer */}
+          <div className="p-6 border-t border-[#E5E7EB] bg-gray-50/50 flex justify-end gap-4">
+            <button onClick={onClose} disabled={isGenerating} className="px-5 py-2.5 border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 text-textSecondary hover:text-textPrimary font-bold text-xs rounded-xl shadow-sm transition-all duration-200">
               Cancel
             </button>
-            <button onClick={handleStart} disabled={isGenerating} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-semibold hover:shadow-lg hover:shadow-primary/25 transition-all duration-300 disabled:opacity-50">
-              {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Play className="w-5 h-5" />}
+            <button onClick={handleStart} disabled={isGenerating} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary hover:bg-[#4F46E5]/95 text-white font-bold text-xs transition-all shadow-sm hover:translate-y-[-1px] disabled:opacity-50">
+              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Play className="w-4 h-4 text-white fill-white" />}
               {isGenerating ? "Generating..." : "Start Interview"}
             </button>
           </div>
