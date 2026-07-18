@@ -28,7 +28,7 @@ function App() {
   const [globalMediaStream, setGlobalMediaStream] = useState(null);
   const [globalVoice, setGlobalVoice] = useState(null);
 
-  
+
   // Authentication State
   const [userProfile, setUserProfile] = useState(() => {
     const saved = localStorage.getItem('userProfile');
@@ -46,7 +46,7 @@ function App() {
 
   const handleLogin = async (profile) => {
     setUserProfile(profile);
-    
+
     // Attempt to save user profile to MongoDB
     try {
       await fetch(`${API}/api/user/save`, {
@@ -57,12 +57,12 @@ function App() {
     } catch (err) {
       console.error("Failed to save user to MongoDB, falling back to LocalStorage only", err);
     }
-    
+
     // Wipe previous session data for the new user
     setInterviewHistory([]);
     setCareerInsights(null);
     setCurrentReport(null);
-    
+
     // Set a blank resume slate based on login info
     setResumeData({
       name: profile.name,
@@ -99,7 +99,7 @@ function App() {
       uploadedDate: "N/A"
     });
   };
-  
+
   // Controlled states for sibling communication
   const [questionNumber, setQuestionNumber] = useState(1);
   const [submittedQuestion, setSubmittedQuestion] = useState("");
@@ -110,7 +110,7 @@ function App() {
     const saved = localStorage.getItem('interviewHistory');
     return saved ? JSON.parse(saved) : [];
   });
-  
+
   useEffect(() => {
     localStorage.setItem('interviewHistory', JSON.stringify(interviewHistory));
   }, [interviewHistory]);
@@ -319,7 +319,7 @@ function App() {
       const response = await fetch(`${API}/api/career-insights`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           resume_data: parsedResumeData,
           user_id: userProfile?.email
         })
@@ -361,9 +361,9 @@ function App() {
           feedback: "Disqualified due to proctoring violation. No evaluation provided."
         }))
       };
-      
+
       setCurrentReport(disqualifiedReport);
-      
+
       const newSession = {
         id: Date.now().toString(),
         date: new Date().toLocaleDateString(),
@@ -376,7 +376,7 @@ function App() {
       };
       setInterviewHistory([newSession, ...interviewHistory]);
       await fetchDashboardData();
-      
+
       setDynamicQuestions([]);
       setCurrentPage('Interview Report');
       setIsEvaluating(false);
@@ -390,7 +390,7 @@ function App() {
       });
       if (response.ok) {
         const report = await response.json();
-        
+
         let careerCoachData = null;
         try {
           const coachRes = await fetch(`${API}/api/career-coach`, {
@@ -412,13 +412,13 @@ function App() {
           if (coachRes.ok) {
             careerCoachData = await coachRes.json();
           }
-        } catch(err) {
+        } catch (err) {
           console.error("Coach API failed", err);
         }
 
         const fullReport = { ...report, career_coach: careerCoachData };
         setCurrentReport(fullReport);
-        
+
         const session_id = Date.now().toString();
         // Save to history
         const newSession = {
@@ -435,7 +435,7 @@ function App() {
           hiring_recommendation: careerCoachData?.hiring_recommendation || "N/A",
           suggested_role: careerCoachData?.suggested_role || "N/A"
         };
-        
+
         // Save to MongoDB
         try {
           await fetch(`${API}/api/interview/save`, {
@@ -448,13 +448,13 @@ function App() {
               answers: answers
             })
           });
-        } catch(err) {
+        } catch (err) {
           console.error("MongoDB save failed, falling back to LocalStorage only", err);
         }
 
         setInterviewHistory(prev => [newSession, ...prev]);
         await fetchDashboardData();
-        
+
         setDynamicQuestions([]);
         setCurrentPage('Interview Report');
       } else {
@@ -477,14 +477,14 @@ function App() {
     <div className="min-h-screen bg-navy-900 selection:bg-primary/30">
       <Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} />
       <div className="flex flex-col">
-        <Header 
-          userName={userProfile?.name || resumeData.name} 
+        <Header
+          userName={userProfile?.name || resumeData.name}
           avatar={userProfile?.avatar}
-          onNewInterview={() => setShowSetupModal(true)} 
+          onNewInterview={() => setShowSetupModal(true)}
           onNameChange={(newName) => {
-            setResumeData({...resumeData, name: newName});
-            setUserProfile({...userProfile, name: newName});
-          }} 
+            setResumeData({ ...resumeData, name: newName });
+            setUserProfile({ ...userProfile, name: newName });
+          }}
           onLogout={handleLogout}
           currentPage={currentPage}
           resumeData={resumeData}
@@ -499,7 +499,7 @@ function App() {
                   const data = await response.json();
                   reportToUse = data.report;
                 }
-              } catch(err) {
+              } catch (err) {
                 console.error("Failed to fetch report from MongoDB", err);
               }
             }
@@ -511,17 +511,17 @@ function App() {
             }
           }}
         />
-        
-        <InterviewSetupModal 
-          isOpen={showSetupModal} 
-          onClose={() => setShowSetupModal(false)} 
+
+        <InterviewSetupModal
+          isOpen={showSetupModal}
+          onClose={() => setShowSetupModal(false)}
           onStart={handleStartInterview}
           resumeData={resumeData}
         />
 
         <main className="ml-[260px] p-8">
           {currentPage === 'Dashboard' ? (
-            <motion.div 
+            <motion.div
               key="dashboard"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -531,7 +531,7 @@ function App() {
               {/* Quick Stats Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {/* 1. Resume Score */}
-                <div 
+                <div
                   onClick={() => !dashboardSummary.resumeUploaded && setCurrentPage('Resume Analysis')}
                   className={`bg-white border border-[#E5E7EB] p-5 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] space-y-3 transition-all duration-200 ${!dashboardSummary.resumeUploaded ? 'cursor-pointer hover:bg-gray-50/50' : ''}`}
                 >
@@ -559,7 +559,7 @@ function App() {
                 </div>
 
                 {/* 2. ATS Score */}
-                <div 
+                <div
                   onClick={() => !dashboardSummary.atsCompleted && setCurrentPage('ATS Checker')}
                   className={`bg-white border border-[#E5E7EB] p-5 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] space-y-3 transition-all duration-200 ${!dashboardSummary.atsCompleted ? 'cursor-pointer hover:bg-gray-50/50' : ''}`}
                 >
@@ -587,7 +587,7 @@ function App() {
                 </div>
 
                 {/* 3. Interview Score */}
-                <div 
+                <div
                   onClick={() => !dashboardSummary.mockCompleted && setShowSetupModal(true)}
                   className={`bg-white border border-[#E5E7EB] p-5 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] space-y-3 transition-all duration-200 ${!dashboardSummary.mockCompleted ? 'cursor-pointer hover:bg-gray-50/50' : ''}`}
                 >
@@ -641,10 +641,10 @@ function App() {
 
               {/* Two-Column SaaS Content Layout: Left (60%) & Right (40%) */}
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-                
+
                 {/* LEFT SIDE (60%): spans 3 of 5 columns */}
                 <div className="lg:col-span-3 space-y-6">
-                  
+
                   {/* 1. Interview Readiness Card */}
                   <div className="bg-white border border-[#E5E7EB] p-8 rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] flex flex-col justify-between items-center text-center space-y-6 transition-all duration-200 min-h-[340px]">
                     <div className="space-y-1">
@@ -656,13 +656,13 @@ function App() {
                     {dashboardSummary.resumeUploaded || dashboardSummary.atsCompleted || dashboardSummary.mockCompleted ? (
                       <div className="relative w-36 h-36 flex items-center justify-center">
                         <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                          <circle 
-                            cx="50" cy="50" r="40" 
-                            stroke="#F3F4F6" strokeWidth="8" fill="transparent" 
+                          <circle
+                            cx="50" cy="50" r="40"
+                            stroke="#F3F4F6" strokeWidth="8" fill="transparent"
                           />
-                          <circle 
-                            cx="50" cy="50" r="40" 
-                            stroke="#4F46E5" strokeWidth="8" fill="transparent" 
+                          <circle
+                            cx="50" cy="50" r="40"
+                            stroke="#4F46E5" strokeWidth="8" fill="transparent"
                             strokeDasharray={2 * Math.PI * 40}
                             strokeDashoffset={2 * Math.PI * 40 - (dashboardSummary.readinessScore / 100) * (2 * Math.PI * 40)}
                             strokeLinecap="round"
@@ -677,13 +677,13 @@ function App() {
                     ) : (
                       <div className="relative w-36 h-36 flex items-center justify-center">
                         <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                          <circle 
-                            cx="50" cy="50" r="40" 
-                            stroke="#F3F4F6" strokeWidth="8" fill="transparent" 
+                          <circle
+                            cx="50" cy="50" r="40"
+                            stroke="#F3F4F6" strokeWidth="8" fill="transparent"
                           />
-                          <circle 
-                            cx="50" cy="50" r="40" 
-                            stroke="#E5E7EB" strokeWidth="8" fill="transparent" 
+                          <circle
+                            cx="50" cy="50" r="40"
+                            stroke="#E5E7EB" strokeWidth="8" fill="transparent"
                             strokeDasharray={2 * Math.PI * 40}
                             strokeDashoffset={2 * Math.PI * 40}
                             strokeLinecap="round"
@@ -704,7 +704,7 @@ function App() {
                           <>Complete your first mock interview to generate your readiness score.</>
                         )}
                       </p>
-                      <button 
+                      <button
                         onClick={() => setShowSetupModal(true)}
                         className="w-full py-2.5 rounded-xl bg-primary hover:bg-primary/95 text-white font-bold text-sm transition-all shadow-sm"
                       >
@@ -738,7 +738,7 @@ function App() {
 
                 {/* RIGHT SIDE (40%): spans 2 of 5 columns */}
                 <div className="lg:col-span-2 space-y-6">
-                  
+
                   {/* 1. Recent Interviews Card */}
                   {interviewHistory && interviewHistory.length > 0 ? (
                     <div className="min-h-[340px] flex flex-col justify-between">
@@ -760,7 +760,7 @@ function App() {
                           <p className="text-xs text-textPrimary font-bold">No interviews completed yet.</p>
                           <p className="text-[11px] text-textSecondary">Your mock records will appear here after your first session.</p>
                         </div>
-                        <button 
+                        <button
                           onClick={() => setShowSetupModal(true)}
                           className="px-4 py-2 border border-primary/20 hover:border-primary/40 text-xs font-bold rounded-xl bg-primary/5 hover:bg-primary/10 text-primary transition-all duration-200 shadow-sm"
                         >
@@ -789,7 +789,7 @@ function App() {
                             <p className="text-[10px] text-textSecondary mt-0.5">Parse metrics & target suggestions.</p>
                           </div>
                         </div>
-                        <button 
+                        <button
                           onClick={() => setCurrentPage('Resume Analysis')}
                           className="p-1.5 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-white text-textSecondary hover:text-textPrimary transition-all"
                         >
@@ -808,7 +808,7 @@ function App() {
                             <p className="text-[10px] text-textSecondary mt-0.5">Check for job profile matches.</p>
                           </div>
                         </div>
-                        <button 
+                        <button
                           onClick={() => setCurrentPage('ATS Checker')}
                           className="p-1.5 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-white text-textSecondary hover:text-textPrimary transition-all"
                         >
@@ -827,7 +827,7 @@ function App() {
                             <p className="text-[10px] text-textSecondary mt-0.5">Engage in live proctored sessions.</p>
                           </div>
                         </div>
-                        <button 
+                        <button
                           onClick={() => setShowSetupModal(true)}
                           className="p-1.5 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-white text-textSecondary hover:text-textPrimary transition-all"
                         >
@@ -846,7 +846,7 @@ function App() {
                             <p className="text-[10px] text-textSecondary mt-0.5">Get roadmap & learning paths.</p>
                           </div>
                         </div>
-                        <button 
+                        <button
                           onClick={() => setShowSetupModal(true)}
                           className="p-1.5 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-white text-textSecondary hover:text-textPrimary transition-all"
                         >
@@ -867,7 +867,7 @@ function App() {
               transition={{ duration: 0.5 }}
               className="max-w-7xl mx-auto"
             >
-              <ResumeAnalysisPage 
+              <ResumeAnalysisPage
                 resumeData={resumeData}
                 onAnalysisSuccess={handleAnalysisSuccess}
               />
@@ -880,8 +880,8 @@ function App() {
               transition={{ duration: 0.5 }}
               className="max-w-7xl mx-auto"
             >
-              <InterviewBriefingPage 
-                sessionConfig={currentSessionConfig} 
+              <InterviewBriefingPage
+                sessionConfig={currentSessionConfig}
                 resumeData={resumeData}
                 onBegin={() => setCurrentPage('Mock Interview')}
                 onCameraReady={setGlobalMediaStream}
@@ -899,7 +899,7 @@ function App() {
                 /* AIAvatar is exclusively rendered inside MockInterviewPage.
                    Do NOT render AIAvatar on Dashboard, Resume Analysis, ATS Checker, 
                    Interview History, or Settings pages. */
-                <MockInterviewPage 
+                <MockInterviewPage
                   questionNumber={questionNumber}
                   setQuestionNumber={setQuestionNumber}
                   questions={dynamicQuestions}
@@ -917,7 +917,7 @@ function App() {
                   </div>
                   <h2 className="text-2xl font-bold text-white mb-2">No Active Interview</h2>
                   <p className="text-gray-400 max-w-md mb-6">Please configure and start a new interview session to access the proctored mock interview environment.</p>
-                  <button 
+                  <button
                     onClick={() => setShowSetupModal(true)}
                     className="px-6 py-3 rounded-xl bg-gradient-to-r from-primary to-secondary text-white font-bold hover:shadow-lg hover:shadow-primary/25 transition-all"
                   >
@@ -945,8 +945,8 @@ function App() {
               transition={{ duration: 0.5 }}
               className="max-w-7xl mx-auto"
             >
-              <InterviewReportPage 
-                report={currentReport} 
+              <InterviewReportPage
+                report={currentReport}
                 onBackToHistory={() => setCurrentPage('Interview History')}
               />
             </motion.div>
@@ -968,11 +968,11 @@ function App() {
               transition={{ duration: 0.5 }}
               className="max-w-7xl mx-auto"
             >
-              <InterviewHistoryPage 
+              <InterviewHistoryPage
                 history={interviewHistory}
                 onViewReport={async (session) => {
                   let reportToUse = session.report;
-                  
+
                   // If report isn't embedded, try to fetch from MongoDB
                   if (!reportToUse && session.id) {
                     try {
@@ -981,11 +981,11 @@ function App() {
                         const data = await response.json();
                         reportToUse = data.report;
                       }
-                    } catch(err) {
+                    } catch (err) {
                       console.error("Failed to fetch report from MongoDB", err);
                     }
                   }
-                  
+
                   if (reportToUse) {
                     setCurrentReport(reportToUse);
                     setCurrentPage('Interview Report');

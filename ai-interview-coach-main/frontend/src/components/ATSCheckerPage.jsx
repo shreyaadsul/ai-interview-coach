@@ -21,7 +21,7 @@ export default function ATSCheckerPage({ setResumeData, onAtsComplete }) {
   const handleUploadSuccess = async (name, file) => {
     setFileName(name);
     setIsAnalyzing(true);
-    
+
     const userProfileStr = localStorage.getItem('userProfile');
     const userProfile = userProfileStr ? JSON.parse(userProfileStr) : null;
     const userId = userProfile?.email || "";
@@ -95,7 +95,7 @@ export default function ATSCheckerPage({ setResumeData, onAtsComplete }) {
           <p className="text-textSecondary text-sm mt-1">Optimize your resume for applicant tracking systems.</p>
         </div>
         {isUploaded && (
-          <button 
+          <button
             onClick={handleReset}
             className="flex items-center gap-2 border border-gray-200 hover:border-primary/30 px-4 py-2 rounded-xl text-textSecondary hover:text-textPrimary text-sm font-semibold transition-all duration-200 bg-white hover:bg-gray-50 self-start sm:self-auto shadow-sm"
           >

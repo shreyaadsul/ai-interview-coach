@@ -1,21 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Loader2, Mail, Lock, User, Calendar, GraduationCap, Briefcase, 
-  ChevronRight, ChevronLeft, Eye, EyeOff, AlertCircle, Bot, 
-  ArrowRight, ArrowLeft, Check, Sparkles, Smile 
+import {
+  Loader2, Mail, Lock, User, Calendar, GraduationCap, Briefcase,
+  ChevronRight, ChevronLeft, Eye, EyeOff, AlertCircle, Bot,
+  ArrowRight, ArrowLeft, Check, Sparkles, Smile
 } from 'lucide-react';
 import { auth, googleProvider, signInWithPopup } from '../lib/firebase';
 
 const API = import.meta.env.VITE_API_URL;
 
 const SUGGESTED_SKILLS = [
-  "Python", "JavaScript", "React", "Node.js", "Java", "C++", 
+  "Python", "JavaScript", "React", "Node.js", "Java", "C++",
   "SQL", "Git", "Docker", "AWS", "Machine Learning", "System Design"
 ];
 
 const SUGGESTED_WEAKNESSES = [
-  "System Design", "System Architecture", "Behavioral Prep", 
+  "System Design", "System Architecture", "Behavioral Prep",
   "Data Structures", "Algorithms", "Public Speaking", "Negotiation", "Case Studies"
 ];
 
@@ -41,7 +41,7 @@ export default function LoginPage({ onLogin }) {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
-      
+
       let response;
       try {
         response = await fetch(`${API}/api/user/google-login`, {
@@ -62,21 +62,21 @@ export default function LoginPage({ onLogin }) {
           throw new Error(`Backend server is unavailable or CORS request was blocked. Please ensure the backend is running at ${API}.`);
         }
       }
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `Invalid server response (Status ${response.status})`);
       }
-      
+
       const data = await response.json();
       if (!data.success) {
         throw new Error(data.error || "Backend returned an unsuccessful status.");
       }
-      
+
       if (!data.user) {
         throw new Error("Invalid server response: User profile is missing.");
       }
-      
+
       if (data.isNewUser) {
         setFormData(prev => ({
           ...prev,
@@ -145,7 +145,7 @@ export default function LoginPage({ onLogin }) {
 
   const toggleSkill = (skill) => {
     const isSelected = formData.skills.includes(skill);
-    const newSkills = isSelected 
+    const newSkills = isSelected
       ? formData.skills.filter(s => s !== skill)
       : [...formData.skills, skill];
     setFormData({ ...formData, skills: newSkills });
@@ -153,7 +153,7 @@ export default function LoginPage({ onLogin }) {
 
   const toggleWeakArea = (area) => {
     const isSelected = formData.weakAreas.includes(area);
-    const newWeakAreas = isSelected 
+    const newWeakAreas = isSelected
       ? formData.weakAreas.filter(a => a !== area)
       : [...formData.weakAreas, area];
     setFormData({ ...formData, weakAreas: newWeakAreas });
@@ -177,7 +177,7 @@ export default function LoginPage({ onLogin }) {
 
   const isNameValid = formData.name.trim().length > 0;
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
-  const isPasswordValid = 
+  const isPasswordValid =
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#^()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/.test(formData.password) &&
     !/\s/.test(formData.password);
   const isConfirmPasswordValid = formData.password === formData.confirmPassword;
@@ -187,17 +187,17 @@ export default function LoginPage({ onLogin }) {
   const getPasswordStrength = () => {
     const pwd = formData.password;
     if (!pwd) return { score: 0, label: 'Weak', color: 'bg-danger' };
-    
+
     let score = 0;
     if (pwd.length >= 8) score++;
     if (/[A-Z]/.test(pwd)) score++;
     if (/[a-z]/.test(pwd)) score++;
     if (/\d/.test(pwd)) score++;
     if (/[@$!%*?&#^()_+\-=[\]{};':"\\|,.<>/?]/.test(pwd)) score++;
-    
+
     let label = 'Weak';
     let color = 'bg-danger';
-    
+
     if (score === 2) {
       label = 'Fair';
       color = 'bg-orange-500';
@@ -216,14 +216,14 @@ export default function LoginPage({ onLogin }) {
         color = 'bg-secondary';
       }
     }
-    
+
     return { score, label, color };
   };
 
   const renderChecklistItem = (label, isSatisfied) => {
     let icon = "✓";
     let colorClass = "text-textSecondary"; // gray
-    
+
     if (isSatisfied) {
       colorClass = "text-success"; // green
       icon = "✓";
@@ -231,7 +231,7 @@ export default function LoginPage({ onLogin }) {
       colorClass = "text-danger"; // red
       icon = "✗";
     }
-    
+
     return (
       <div className={`flex items-center gap-2 text-xs font-semibold ${colorClass} transition-colors duration-200`}>
         <span className="text-sm font-bold">{icon}</span>
@@ -307,9 +307,16 @@ export default function LoginPage({ onLogin }) {
         throw new Error(`Cannot connect to the authentication server. Please check your network or ensure the backend is running at ${API}.`);
       }
 
-      const data = await response.json();
+      let data;
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        data = {};
+      }
+
       if (!response.ok) {
-        throw new Error(data.error || "Failed to create profile");
+        throw new Error(data.message || data.error || "Failed to create profile");
       }
 
       // Login immediately with the new user profile
@@ -384,7 +391,7 @@ export default function LoginPage({ onLogin }) {
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4 relative overflow-hidden">
       <div className="w-full max-w-[460px] relative z-10">
-        
+
         {/* Onboarding Steps Progress Indicator */}
         {!isLoginMode && step === 1 && (
           <div className="mb-6">
@@ -393,7 +400,7 @@ export default function LoginPage({ onLogin }) {
               <span>Step 1 of 5</span>
             </div>
             <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-primary transition-all duration-300"
                 style={{ width: '20%' }}
               />
@@ -402,7 +409,7 @@ export default function LoginPage({ onLogin }) {
         )}
 
         <div className="bg-white border border-[#E5E7EB] rounded-[24px] shadow-[0_8px_30px_rgba(15,23,42,0.08)] p-10">
-          
+
           {error && (
             <div className="mb-6 p-4 bg-danger/10 border border-danger/20 text-danger rounded-xl flex items-start gap-2.5 text-sm animate-shake">
               <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
@@ -411,7 +418,7 @@ export default function LoginPage({ onLogin }) {
           )}
 
           <AnimatePresence mode="wait">
-            
+
             {/* LOGIN MODE */}
             {isLoginMode && (
               <motion.div
@@ -490,8 +497,8 @@ export default function LoginPage({ onLogin }) {
                     </label>
                     <div className="relative">
                       <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-textSecondary" />
-                      <input 
-                        type="email" 
+                      <input
+                        type="email"
                         name="email"
                         value={loginFormData.email}
                         onChange={handleLoginChange}
@@ -509,8 +516,8 @@ export default function LoginPage({ onLogin }) {
                     </label>
                     <div className="relative">
                       <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-textSecondary" />
-                      <input 
-                        type={showPassword ? "text" : "password"} 
+                      <input
+                        type={showPassword ? "text" : "password"}
                         name="password"
                         value={loginFormData.password}
                         onChange={handleLoginChange}
@@ -540,9 +547,9 @@ export default function LoginPage({ onLogin }) {
                   {/* Remember / Forgot Password */}
                   <div className="flex items-center justify-between text-xs pt-1">
                     <label className="flex items-center gap-2 cursor-pointer text-textSecondary font-semibold select-none group">
-                      <input 
-                        type="checkbox" 
-                        className="w-4.5 h-4.5 rounded-md border-[#E5E7EB] text-primary focus:ring-primary/20 cursor-pointer accent-[#4F46E5]" 
+                      <input
+                        type="checkbox"
+                        className="w-4.5 h-4.5 rounded-md border-[#E5E7EB] text-primary focus:ring-primary/20 cursor-pointer accent-[#4F46E5]"
                       />
                       <span className="group-hover:text-textPrimary transition-colors">Remember me</span>
                     </label>
@@ -556,7 +563,7 @@ export default function LoginPage({ onLogin }) {
                   </div>
 
                   {/* Login Button */}
-                  <button 
+                  <button
                     type="submit"
                     disabled={loading}
                     className="w-full h-14 rounded-2xl bg-primary hover:bg-primary/95 text-white font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 hover:-translate-y-0.5 active:translate-y-0 shadow-[0_4px_12px_rgba(79,70,229,0.25)] hover:shadow-[0_6px_16px_rgba(79,70,229,0.35)] disabled:opacity-50 disabled:pointer-events-none"
@@ -622,7 +629,7 @@ export default function LoginPage({ onLogin }) {
                 </p>
 
                 <div className="space-y-4 pt-4">
-                  <button 
+                  <button
                     onClick={() => setStep(1)}
                     className="w-full h-14 rounded-2xl bg-primary hover:bg-primary/95 text-white font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 hover:-translate-y-0.5 active:translate-y-0 shadow-[0_4px_12px_rgba(79,70,229,0.25)]"
                   >
@@ -630,7 +637,7 @@ export default function LoginPage({ onLogin }) {
                     <ArrowRight className="w-4 h-4" />
                   </button>
 
-                  <button 
+                  <button
                     onClick={() => {
                       setIsLoginMode(true);
                       setError('');
@@ -692,8 +699,8 @@ export default function LoginPage({ onLogin }) {
                     <label className="text-xs font-bold text-textPrimary">
                       Full Name *
                     </label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       name="name"
                       value={formData.name}
                       onChange={handleOnboardingChange}
@@ -714,8 +721,8 @@ export default function LoginPage({ onLogin }) {
                     <label className="text-xs font-bold text-textPrimary">
                       Email Address *
                     </label>
-                    <input 
-                      type="email" 
+                    <input
+                      type="email"
                       name="email"
                       value={formData.email}
                       onChange={handleOnboardingChange}
@@ -725,9 +732,8 @@ export default function LoginPage({ onLogin }) {
                       required
                     />
                     {(emailTouched || formData.email) && (
-                      <div className={`text-xs font-bold mt-1 flex items-center gap-1.5 ${
-                        isEmailValid ? 'text-success' : 'text-danger'
-                      }`}>
+                      <div className={`text-xs font-bold mt-1 flex items-center gap-1.5 ${isEmailValid ? 'text-success' : 'text-danger'
+                        }`}>
                         <span>{isEmailValid ? '✓' : '✗'}</span>
                         <span>{isEmailValid ? 'Valid email' : 'Invalid email address'}</span>
                       </div>
@@ -740,8 +746,8 @@ export default function LoginPage({ onLogin }) {
                         Password *
                       </label>
                       <div className="relative">
-                        <input 
-                          type={showOnboardingPassword ? "text" : "password"} 
+                        <input
+                          type={showOnboardingPassword ? "text" : "password"}
                           name="password"
                           value={formData.password}
                           onChange={handleOnboardingChange}
@@ -774,8 +780,8 @@ export default function LoginPage({ onLogin }) {
                         Confirm Password *
                       </label>
                       <div className="relative">
-                        <input 
-                          type={showOnboardingConfirmPassword ? "text" : "password"} 
+                        <input
+                          type={showOnboardingConfirmPassword ? "text" : "password"}
                           name="confirmPassword"
                           value={formData.confirmPassword}
                           onChange={handleOnboardingChange}
@@ -797,9 +803,8 @@ export default function LoginPage({ onLogin }) {
                         </button>
                       </div>
                       {(confirmPasswordTouched || formData.confirmPassword) && (
-                        <div className={`text-xs font-bold mt-1 flex items-center gap-1.5 ${
-                          isConfirmPasswordValid ? 'text-success' : 'text-danger'
-                        }`}>
+                        <div className={`text-xs font-bold mt-1 flex items-center gap-1.5 ${isConfirmPasswordValid ? 'text-success' : 'text-danger'
+                          }`}>
                           <span>{isConfirmPasswordValid ? '✓' : '✗'}</span>
                           <span>{isConfirmPasswordValid ? 'Passwords match' : 'Passwords do not match'}</span>
                         </div>
@@ -816,25 +821,23 @@ export default function LoginPage({ onLogin }) {
                       {renderChecklistItem("One lowercase letter", passwordRules.hasLowercase)}
                       {renderChecklistItem("One number", passwordRules.hasNumber)}
                       {renderChecklistItem("One special character", passwordRules.hasSpecial)}
-                      
+
                       {/* Strength indicator */}
                       <div className="space-y-1.5 pt-2 border-t border-gray-200/50">
                         <div className="flex justify-between items-center text-xs font-bold text-textPrimary">
                           <span>Password Strength:</span>
-                          <span className={`font-extrabold ${
-                            getPasswordStrength().score <= 1 ? 'text-danger' :
-                            getPasswordStrength().score === 2 ? 'text-orange-500' :
-                            getPasswordStrength().score === 3 ? 'text-warning' :
-                            getPasswordStrength().score === 4 ? 'text-secondary' : 'text-success'
-                          }`}>{getPasswordStrength().label}</span>
+                          <span className={`font-extrabold ${getPasswordStrength().score <= 1 ? 'text-danger' :
+                              getPasswordStrength().score === 2 ? 'text-orange-500' :
+                                getPasswordStrength().score === 3 ? 'text-warning' :
+                                  getPasswordStrength().score === 4 ? 'text-secondary' : 'text-success'
+                            }`}>{getPasswordStrength().label}</span>
                         </div>
                         <div className="flex gap-1 h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
                           {[1, 2, 3, 4, 5].map((index) => (
-                            <div 
+                            <div
                               key={index}
-                              className={`h-full flex-1 transition-all duration-300 ${
-                                index <= getPasswordStrength().score ? getPasswordStrength().color : 'bg-gray-300'
-                              }`}
+                              className={`h-full flex-1 transition-all duration-300 ${index <= getPasswordStrength().score ? getPasswordStrength().color : 'bg-gray-300'
+                                }`}
                             />
                           ))}
                         </div>
@@ -844,13 +847,13 @@ export default function LoginPage({ onLogin }) {
                 </div>
 
                 <div className="flex gap-4 pt-4">
-                  <button 
+                  <button
                     onClick={handleBack}
                     className="flex-1 h-14 rounded-2xl border border-[#E5E7EB] text-textSecondary hover:text-textPrimary hover:bg-gray-50 font-bold text-sm transition-all flex items-center justify-center gap-1.5"
                   >
                     <ArrowLeft className="w-4 h-4" /> Back
                   </button>
-                  <button 
+                  <button
                     onClick={handleNext}
                     disabled={!isStep1Valid}
                     className="flex-1 h-14 rounded-2xl bg-primary hover:bg-primary/95 text-white font-bold text-sm transition-all flex items-center justify-center gap-1.5 group disabled:opacity-50 disabled:pointer-events-none"
@@ -883,7 +886,7 @@ export default function LoginPage({ onLogin }) {
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-textPrimary">Current Status</label>
-                    <select 
+                    <select
                       name="status"
                       value={formData.status}
                       onChange={handleOnboardingChange}
@@ -900,8 +903,8 @@ export default function LoginPage({ onLogin }) {
                     <label className="text-xs font-bold text-textPrimary">
                       Degree / Major *
                     </label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       name="degree"
                       value={formData.degree}
                       onChange={handleOnboardingChange}
@@ -913,7 +916,7 @@ export default function LoginPage({ onLogin }) {
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-textPrimary">Graduation Year / Experience Year</label>
-                    <select 
+                    <select
                       name="graduationYear"
                       value={formData.graduationYear}
                       onChange={handleOnboardingChange}
@@ -930,8 +933,8 @@ export default function LoginPage({ onLogin }) {
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-textPrimary">Target Career *</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       name="targetRole"
                       value={formData.targetRole}
                       onChange={handleOnboardingChange}
@@ -943,13 +946,13 @@ export default function LoginPage({ onLogin }) {
                 </div>
 
                 <div className="flex gap-4 pt-4">
-                  <button 
+                  <button
                     onClick={handleBack}
                     className="flex-1 h-14 rounded-2xl border border-[#E5E7EB] text-textSecondary hover:text-textPrimary hover:bg-gray-50 font-bold text-sm transition-all flex items-center justify-center gap-1.5"
                   >
                     <ArrowLeft className="w-4 h-4" /> Back
                   </button>
-                  <button 
+                  <button
                     onClick={handleNext}
                     className="flex-1 h-14 rounded-2xl bg-primary hover:bg-primary/95 text-white font-bold text-sm transition-all flex items-center justify-center gap-1.5 group"
                   >
@@ -1059,14 +1062,14 @@ export default function LoginPage({ onLogin }) {
                 </div>
 
                 <div className="flex gap-4 pt-1">
-                  <button 
+                  <button
                     onClick={handleBack}
                     disabled={loading}
                     className="flex-1 h-14 rounded-2xl border border-[#E5E7EB] text-textSecondary hover:text-textPrimary hover:bg-gray-50 font-bold text-sm transition-all flex items-center justify-center gap-1.5"
                   >
                     <ArrowLeft className="w-4 h-4" /> Back
                   </button>
-                  <button 
+                  <button
                     onClick={handleOnboardingSubmit}
                     disabled={loading}
                     className="flex-1 h-14 rounded-2xl bg-primary hover:bg-primary/95 text-white font-bold text-sm transition-all flex items-center justify-center gap-1.5 group shadow-[0_4px_12px_rgba(79,70,229,0.25)]"

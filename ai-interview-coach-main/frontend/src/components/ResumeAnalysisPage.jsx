@@ -94,7 +94,7 @@ export default function ResumeAnalysisPage({ resumeData, onAnalysisSuccess }) {
 
   return (
     <div className="space-y-8 relative">
-      
+
       {/* Toast Error Alert */}
       {errorToast && (
         <div className="fixed bottom-6 right-6 z-50 bg-[#EF4444] text-white px-5 py-3 rounded-xl shadow-md font-semibold text-sm animate-bounce">
@@ -112,7 +112,7 @@ export default function ResumeAnalysisPage({ resumeData, onAnalysisSuccess }) {
       )}
 
       {/* Hidden file input */}
-      <input 
+      <input
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
@@ -129,7 +129,7 @@ export default function ResumeAnalysisPage({ resumeData, onAnalysisSuccess }) {
           <p className="text-textSecondary text-sm mt-1">Detailed evaluation and parsed insights from your CV</p>
         </div>
         {isResumeUploaded && (
-          <button 
+          <button
             onClick={handleUploadClick}
             className="flex items-center gap-2 bg-primary hover:bg-primary/95 text-white px-5 py-2.5 rounded-xl transition-all duration-200 shadow-sm text-sm font-bold self-start sm:self-auto"
           >
@@ -230,8 +230,8 @@ export default function ResumeAnalysisPage({ resumeData, onAnalysisSuccess }) {
             <h3 className="text-xs font-bold text-textSecondary uppercase tracking-wider mb-4">Skills Detected</h3>
             <div className="flex flex-wrap gap-2">
               {resumeData.skills && resumeData.skills.map(skill => (
-                <span 
-                  key={skill} 
+                <span
+                  key={skill}
                   className="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-primary/5 border border-primary/20 text-primary transition-colors cursor-default animate-fadeIn"
                 >
                   {skill}
@@ -257,8 +257,8 @@ export default function ResumeAnalysisPage({ resumeData, onAnalysisSuccess }) {
               <h3 className="text-xs font-bold text-textSecondary uppercase tracking-wider mb-4">Suggested Roles</h3>
               <div className="flex flex-col gap-2">
                 {resumeData.suggested_roles && resumeData.suggested_roles.map(role => (
-                  <div 
-                    key={role} 
+                  <div
+                    key={role}
                     className="flex items-center justify-between p-3.5 rounded-2xl bg-gray-50 border border-gray-100 hover:border-primary/20 transition-all duration-200"
                   >
                     <span className="text-sm font-bold text-textPrimary">{role}</span>
@@ -276,7 +276,7 @@ export default function ResumeAnalysisPage({ resumeData, onAnalysisSuccess }) {
             {/* Section 6: Resume Score Card */}
             <div className="glass p-6 bg-white border border-[#E5E7EB] rounded-3xl flex flex-col items-center justify-center text-center space-y-4">
               <h3 className="text-xs font-bold text-textSecondary uppercase tracking-wider self-start">Resume Score</h3>
-              
+
               <div className="relative w-28 h-28 flex items-center justify-center">
                 {/* SVG Progress Circle */}
                 <svg className="w-full h-full transform -rotate-90">

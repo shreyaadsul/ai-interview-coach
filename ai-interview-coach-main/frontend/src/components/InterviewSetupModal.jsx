@@ -27,7 +27,7 @@ export default function InterviewSetupModal({ isOpen, onClose, onStart, resumeDa
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ resume_data: resumeData, ...config }),
       });
-      
+
       if (response.ok) {
         const generatedData = await response.json();
         const firstQuestion = generatedData.question || "Let's start by having you introduce yourself and tell me about your background.";
@@ -46,7 +46,7 @@ export default function InterviewSetupModal({ isOpen, onClose, onStart, resumeDa
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
@@ -66,7 +66,7 @@ export default function InterviewSetupModal({ isOpen, onClose, onStart, resumeDa
             <div className="space-y-2 flex flex-col">
               <label className="text-xs font-bold text-textSecondary uppercase tracking-wider">Target Role</label>
               <div className="relative">
-                <select 
+                <select
                   value={targetRole}
                   onChange={(e) => setTargetRole(e.target.value)}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 hover:border-primary/30 focus:border-primary/50 focus:ring-1 focus:ring-primary/20 rounded-xl text-textPrimary text-sm focus:outline-none transition-all duration-300 appearance-none cursor-pointer"
@@ -80,7 +80,7 @@ export default function InterviewSetupModal({ isOpen, onClose, onStart, resumeDa
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-textSecondary">
                   <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
                   </svg>
                 </div>
               </div>

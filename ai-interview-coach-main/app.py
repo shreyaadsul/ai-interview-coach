@@ -900,13 +900,24 @@ def get_interview_report(session_id):
 def save_user():
     db, collections = get_db()
     if db is None:
-        return jsonify({"error": "MongoDB not available"}), 503
+        return jsonify({
+            "success": False,
+            "message": "MongoDB not available"
+        }), 400
         
     data = request.json
+    if not data:
+        return jsonify({
+            "success": False,
+            "message": "Request body is empty or not valid JSON"
+        }), 400
+        
     email = data.get('email')
-    
     if not email:
-        return jsonify({"error": "Email is required to save user profile"}), 400
+        return jsonify({
+            "success": False,
+            "message": "Email is required to save user profile"
+        }), 400
         
     try:
         data['user_id'] = email
@@ -923,9 +934,15 @@ def save_user():
             {"$set": data}, 
             upsert=True
         )
-        return jsonify({"message": "User profile saved successfully"}), 200
+        return jsonify({
+            "success": True,
+            "message": "User saved successfully"
+        }), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 400
 
 @app.route('/api/user/google-login', methods=['POST', 'OPTIONS'])
 def google_login():

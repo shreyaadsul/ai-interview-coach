@@ -85,7 +85,7 @@ const FormSelect = ({ label, value, onChange, options = [] }) => (
       </select>
       <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-textSecondary">
         <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-          <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+          <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
         </svg>
       </div>
     </div>
@@ -168,7 +168,7 @@ export default function SettingsPage({ onProfileUpdate }) {
   const [activeTab, setActiveTab] = useState('profile');
   const [modalOpen, setModalOpen] = useState(null); // 'delete' | null
   const [successMessage, setSuccessMessage] = useState("");
-  
+
   // Top-level states for Security and Account tabs to obey React Hooks rules
   const [passwordState, setPasswordState] = useState({ current: "", newPassword: "", confirm: "" });
   const [activeSessions, setActiveSessions] = useState([
@@ -244,7 +244,7 @@ export default function SettingsPage({ onProfileUpdate }) {
         });
         if (response.ok) {
           showSuccessToast("Settings saved successfully!");
-          
+
           // Sync changes back to localStorage
           const updatedLocalProfile = {
             ...userProfile,
@@ -324,9 +324,9 @@ export default function SettingsPage({ onProfileUpdate }) {
           </div>
           <label className="absolute inset-0 bg-black/40 text-white rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer text-xs font-bold">
             Upload
-            <input 
-              type="file" 
-              accept="image/*" 
+            <input
+              type="file"
+              accept="image/*"
               onChange={(e) => {
                 const file = e.target.files[0];
                 if (file) {
@@ -336,21 +336,21 @@ export default function SettingsPage({ onProfileUpdate }) {
                   };
                   reader.readAsDataURL(file);
                 }
-              }} 
-              className="hidden" 
+              }}
+              className="hidden"
             />
           </label>
         </div>
-        
+
         <div className="flex-grow space-y-2">
           <span className="text-xs font-bold text-textSecondary uppercase tracking-wider block">Profile Photo</span>
           <p className="text-xs text-textSecondary">Upload a high-quality JPG, PNG or SVG profile picture. This custom photo will persist across the application.</p>
           <div className="flex items-center gap-3 pt-1">
             <label className="px-4 py-2 border border-gray-200 bg-white hover:bg-gray-50 text-textSecondary hover:text-textPrimary font-semibold text-xs rounded-xl shadow-sm cursor-pointer transition-all duration-200">
               Upload Custom Photo
-              <input 
-                type="file" 
-                accept="image/*" 
+              <input
+                type="file"
+                accept="image/*"
                 onChange={(e) => {
                   const file = e.target.files[0];
                   if (file) {
@@ -360,8 +360,8 @@ export default function SettingsPage({ onProfileUpdate }) {
                     };
                     reader.readAsDataURL(file);
                   }
-                }} 
-                className="hidden" 
+                }}
+                className="hidden"
               />
             </label>
             {draftProfile.avatar && (draftProfile.avatar.startsWith('data:') || draftProfile.avatar.startsWith('http')) && (
@@ -442,11 +442,11 @@ export default function SettingsPage({ onProfileUpdate }) {
 
   const renderPreferences = () => {
     const roleOptions = [
-      "Machine Learning Engineer", 
-      "Data Scientist", 
-      "Backend Developer", 
-      "AI Engineer", 
-      "Python Developer", 
+      "Machine Learning Engineer",
+      "Data Scientist",
+      "Backend Developer",
+      "AI Engineer",
+      "Python Developer",
       "Frontend Developer"
     ];
     const difficultyOptions = ["Easy", "Medium", "Hard", "Expert"];
@@ -505,9 +505,9 @@ export default function SettingsPage({ onProfileUpdate }) {
 
   const renderInterview = () => {
     const avatarOptions = [
-      "Virtual Assistant 🤖", 
-      "Tech Interviewer 👨‍💼", 
-      "HR Specialist 👩‍💼", 
+      "Virtual Assistant 🤖",
+      "Tech Interviewer 👨‍💼",
+      "HR Specialist 👩‍💼",
       "Professional Coach 🎓"
     ];
     const voiceOptions = ["Assistant Voice", "Professional Male", "Friendly Female", "Robot"];
@@ -726,7 +726,7 @@ export default function SettingsPage({ onProfileUpdate }) {
 
       {/* Tab Split Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-        
+
         {/* Left Navigation */}
         <div className="lg:col-span-1 bg-white border border-[#E5E7EB] rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] p-3.5 space-y-1">
           {tabs.map((tab) => {
@@ -737,11 +737,10 @@ export default function SettingsPage({ onProfileUpdate }) {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-3.5 w-full px-4 py-3 rounded-xl text-xs font-bold transition-all duration-200 ${
-                  isActive
+                className={`flex items-center gap-3.5 w-full px-4 py-3 rounded-xl text-xs font-bold transition-all duration-200 ${isActive
                     ? 'bg-primary text-white shadow-md shadow-primary/20 font-extrabold'
                     : 'text-textSecondary hover:bg-gray-50 hover:text-textPrimary'
-                }`}
+                  }`}
               >
                 <IconComponent className={`w-4 h-4 ${isActive ? 'text-white' : 'text-textSecondary'}`} />
                 {tab.label}
@@ -752,14 +751,14 @@ export default function SettingsPage({ onProfileUpdate }) {
 
         {/* Right Settings Form Container */}
         <div className="lg:col-span-3 bg-white border border-[#E5E7EB] rounded-[18px] shadow-[0_4px_16px_rgba(0,0,0,0.06)] p-8 flex flex-col min-h-[620px] transition-all duration-200">
-          
+
           {/* Header row with Save / Cancel in the top-right */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-100">
             <div>
               <h2 className="text-lg font-bold text-textPrimary capitalize">{activeTab} Settings</h2>
               <p className="text-xs text-textSecondary mt-0.5">Customize your preferences and account options</p>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -808,20 +807,20 @@ export default function SettingsPage({ onProfileUpdate }) {
                 <li>All mock interview logs and AI evaluations.</li>
                 <li>Leaderboard rankings and history items.</li>
               </ul>
-              
+
               <p className="text-xs text-red-500 font-semibold bg-red-500/5 border border-red-500/10 p-3 rounded-lg">
                 ⚠️ Warning: This operation cannot be undone.
               </p>
 
               <div className="flex gap-3 pt-2">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={handleCloseModal}
                   className="flex-1 py-2.5 rounded-xl border border-gray-200 text-textSecondary hover:bg-gray-50 font-semibold text-sm transition-colors focus:outline-none"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     handleCloseModal();
                     alert("Account deletion simulated.");

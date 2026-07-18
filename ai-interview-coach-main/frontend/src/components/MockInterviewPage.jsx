@@ -9,7 +9,7 @@ const API = import.meta.env.VITE_API_URL;
 // ─── Text Cleanup Utility ─────────────────────────────────────────────────────
 const cleanText = (text) => {
   if (!text) return "";
-  
+
   let cleaned = text;
 
   // Dictionary for speech recognition typos and corrections
@@ -241,7 +241,7 @@ export default function MockInterviewPage({
 
       const englishVoices = voices.filter(v => v.lang.startsWith('en') || v.lang.includes('en-'));
       let foundVoice = null;
-      
+
       const targetLangs = ['en-US', 'en-IN'];
       for (const lang of targetLangs) {
         const langVoices = englishVoices.filter(v => v.lang.toLowerCase().includes(lang.toLowerCase()));
@@ -315,27 +315,27 @@ export default function MockInterviewPage({
   const speakQuestion = (text, onEndCallback) => {
     activeQuestionRef.current = text;
     window.speechSynthesis.cancel();
-    
+
     const utterance = new SpeechSynthesisUtterance(text);
-    
+
     const voiceToUse = voice;
     if (voiceToUse) {
       utterance.voice = voiceToUse;
     }
-    
+
     utterance.onend = () => {
       if (activeQuestionRef.current === text) {
         if (onEndCallback) onEndCallback();
       }
     };
-    
+
     utterance.onerror = (e) => {
       if (e.error === 'interrupted' || activeQuestionRef.current !== text) {
         return;
       }
       if (onEndCallback) onEndCallback();
     };
-    
+
     window.speechSynthesis.speak(utterance);
   };
 
@@ -345,7 +345,7 @@ export default function MockInterviewPage({
 
     const originalQuestion = currentQuestion.trim();
     stopSpeechRecognition();
-    
+
     setInterviewerState('Speaking');
 
     speakQuestion(originalQuestion, () => {
@@ -383,7 +383,7 @@ export default function MockInterviewPage({
           interimTranscript += transcript;
         }
       }
-      
+
       const currentFullText = finalTranscript + interimTranscript;
 
       if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
@@ -405,7 +405,7 @@ export default function MockInterviewPage({
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
-      } catch (e) {}
+      } catch (e) { }
     }
   };
 
@@ -413,7 +413,7 @@ export default function MockInterviewPage({
     const finalAnswer = cleanText(text) || 'No answer provided.';
     const updatedAnswers = { ...answers, [questionNumber]: finalAnswer };
     setAnswers(updatedAnswers);
-    
+
     stopSpeechRecognition();
     setInterviewerState('Analyzing');
 
@@ -469,7 +469,7 @@ export default function MockInterviewPage({
       isSubmittingRef.current = true;
       stopSpeechRecognition();
       window.speechSynthesis.cancel();
-      try { if (document.fullscreenElement) document.exitFullscreen(); } catch (_) {}
+      try { if (document.fullscreenElement) document.exitFullscreen(); } catch (_) { }
       const allAnswers = questions.map((_, i) => answers[i + 1] || 'No answer provided.');
       if (onSubmit) onSubmit(questions, allAnswers, isDisqualified === true);
     },
@@ -609,7 +609,7 @@ export default function MockInterviewPage({
           phoneLastSeenTimeRef.current = Date.now();
         }
       }
-    } catch (err) {}
+    } catch (err) { }
   };
 
   const handleVideoLoad = () => {
@@ -635,7 +635,7 @@ export default function MockInterviewPage({
               awayFrames++;
               if (awayFrames > 12) { handleViolation('AI could not detect your face. Please stay in frame.'); awayFrames = 0; }
             }
-          } catch (e) {}
+          } catch (e) { }
         }
         const now = Date.now();
         if (now - lastObjTime > 500) { lastObjTime = now; await detectObjects(); }
@@ -646,7 +646,7 @@ export default function MockInterviewPage({
   };
 
   const handleResumeAfterWarning = async () => {
-    try { if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); } catch (_) {}
+    try { if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); } catch (_) { }
     setShowWarning(false);
     setTimeout(() => { showWarningRef.current = false; }, 1000);
   };
@@ -738,181 +738,181 @@ export default function MockInterviewPage({
         </div>
       )}
 
-        {/* ── Page Header ── */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 24,
-          padding: '16px 24px',
-          background: '#ffffff',
-          border: '1px solid #E5E7EB',
-          borderRadius: 16,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.02)'
-        }}>
-          <div>
-            <h1 className="text-xl font-bold text-textPrimary tracking-tight flex items-center gap-2">
-              <span style={{ color: '#4F46E5' }}>✦</span> AI Interview Room
-            </h1>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-            {/* Dynamic Question Counter */}
-            <div style={{ color: '#6B7280', fontSize: '0.875rem', fontWeight: 600 }}>
-              Question <span style={{ color: '#111827' }}>{questionNumber}</span> of <span style={{ color: '#111827' }}>{totalQuestions}</span>
-            </div>
-
-            {/* Dynamic Timer */}
-            <div style={{
-              color: '#4F46E5',
-              fontSize: '0.875rem',
-              fontWeight: 700,
-              fontFamily: 'monospace',
-              background: 'rgba(79, 70, 229, 0.05)',
-              border: '1px solid rgba(79, 70, 229, 0.15)',
-              padding: '4px 12px',
-              borderRadius: 8
-            }}>
-              ⏱ {formatTime(elapsedTime)}
-            </div>
-
-            {/* End Interview Button */}
-            <button
-              onClick={() => {
-                if (window.confirm("Are you sure you want to end the interview early? Your responses will be evaluated up to this point.")) {
-                  handleForceSubmit();
-                }
-              }}
-              style={{
-                background: 'transparent',
-                border: '1px solid #ef4444',
-                color: '#ef4444',
-                padding: '6px 16px',
-                borderRadius: 8,
-                fontSize: '0.875rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => { e.target.style.background = 'rgba(239, 68, 68, 0.05)'; }}
-              onMouseLeave={(e) => { e.target.style.background = 'transparent'; }}
-            >
-              End Interview
-            </button>
-          </div>
+      {/* ── Page Header ── */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 24,
+        padding: '16px 24px',
+        background: '#ffffff',
+        border: '1px solid #E5E7EB',
+        borderRadius: 16,
+        boxShadow: '0 4px 12px rgba(0,0,0,0.02)'
+      }}>
+        <div>
+          <h1 className="text-xl font-bold text-textPrimary tracking-tight flex items-center gap-2">
+            <span style={{ color: '#4F46E5' }}>✦</span> AI Interview Room
+          </h1>
         </div>
 
-        {/* ── Main 50/50 split room layout ── */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 24,
-          alignItems: 'stretch',
-          marginBottom: 24,
-          flex: 1,
-          minHeight: 0
-        }}>
-          {/* LEFT SIDE: AI Interviewer Panel */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+          {/* Dynamic Question Counter */}
+          <div style={{ color: '#6B7280', fontSize: '0.875rem', fontWeight: 600 }}>
+            Question <span style={{ color: '#111827' }}>{questionNumber}</span> of <span style={{ color: '#111827' }}>{totalQuestions}</span>
+          </div>
+
+          {/* Dynamic Timer */}
           <div style={{
-            borderRadius: 24,
-            overflow: 'hidden',
-            border: interviewerState === 'Speaking'
-              ? '2px solid rgba(139, 92, 246, 0.5)' // Purple glow when speaking
-              : interviewerState === 'Listening'
+            color: '#4F46E5',
+            fontSize: '0.875rem',
+            fontWeight: 700,
+            fontFamily: 'monospace',
+            background: 'rgba(79, 70, 229, 0.05)',
+            border: '1px solid rgba(79, 70, 229, 0.15)',
+            padding: '4px 12px',
+            borderRadius: 8
+          }}>
+            ⏱ {formatTime(elapsedTime)}
+          </div>
+
+          {/* End Interview Button */}
+          <button
+            onClick={() => {
+              if (window.confirm("Are you sure you want to end the interview early? Your responses will be evaluated up to this point.")) {
+                handleForceSubmit();
+              }
+            }}
+            style={{
+              background: 'transparent',
+              border: '1px solid #ef4444',
+              color: '#ef4444',
+              padding: '6px 16px',
+              borderRadius: 8,
+              fontSize: '0.875rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => { e.target.style.background = 'rgba(239, 68, 68, 0.05)'; }}
+            onMouseLeave={(e) => { e.target.style.background = 'transparent'; }}
+          >
+            End Interview
+          </button>
+        </div>
+      </div>
+
+      {/* ── Main 50/50 split room layout ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: 24,
+        alignItems: 'stretch',
+        marginBottom: 24,
+        flex: 1,
+        minHeight: 0
+      }}>
+        {/* LEFT SIDE: AI Interviewer Panel */}
+        <div style={{
+          borderRadius: 24,
+          overflow: 'hidden',
+          border: interviewerState === 'Speaking'
+            ? '2px solid rgba(139, 92, 246, 0.5)' // Purple glow when speaking
+            : interviewerState === 'Listening'
               ? '2px solid rgba(34, 197, 94, 0.4)' // Green border when listening
               : '2px solid rgba(59, 130, 246, 0.4)', // Blue border when analyzing
-            boxShadow: interviewerState === 'Speaking'
-              ? '0 0 25px rgba(139, 92, 246, 0.15)'
-              : interviewerState === 'Listening'
+          boxShadow: interviewerState === 'Speaking'
+            ? '0 0 25px rgba(139, 92, 246, 0.15)'
+            : interviewerState === 'Listening'
               ? '0 0 25px rgba(34, 197, 94, 0.1)'
               : '0 0 25px rgba(59, 130, 246, 0.1)',
-            background: 'linear-gradient(145deg, #070c1f, #0d1530)',
+          background: 'linear-gradient(145deg, #070c1f, #0d1530)',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          transition: 'all 0.5s ease'
+        }}>
+          {/* Header */}
+          <div style={{
             display: 'flex',
-            flexDirection: 'column',
-            position: 'relative',
-            transition: 'all 0.5s ease'
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '16px 20px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+            background: 'rgba(255, 255, 255, 0.02)'
           }}>
-            {/* Header */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '16px 20px',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-              background: 'rgba(255, 255, 255, 0.02)'
-            }}>
-              <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.9rem' }}>● AI Interviewer</span>
-              {/* Dynamic Status Badge */}
-              <span style={{
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                letterSpacing: '0.08em',
-                padding: '4px 10px',
-                borderRadius: 999,
-                background: interviewerState === 'Speaking'
-                  ? 'rgba(139, 92, 246, 0.15)'
-                  : interviewerState === 'Listening'
+            <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.9rem' }}>● AI Interviewer</span>
+            {/* Dynamic Status Badge */}
+            <span style={{
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              letterSpacing: '0.08em',
+              padding: '4px 10px',
+              borderRadius: 999,
+              background: interviewerState === 'Speaking'
+                ? 'rgba(139, 92, 246, 0.15)'
+                : interviewerState === 'Listening'
                   ? 'rgba(34, 197, 94, 0.15)'
                   : 'rgba(59, 130, 246, 0.15)',
-                color: interviewerState === 'Speaking'
-                  ? '#a855f7'
-                  : interviewerState === 'Listening'
+              color: interviewerState === 'Speaking'
+                ? '#a855f7'
+                : interviewerState === 'Listening'
                   ? '#4ade80'
                   : '#60a5fa',
-                border: interviewerState === 'Speaking'
-                  ? '1px solid rgba(139, 92, 246, 0.3)'
-                  : interviewerState === 'Listening'
+              border: interviewerState === 'Speaking'
+                ? '1px solid rgba(139, 92, 246, 0.3)'
+                : interviewerState === 'Listening'
                   ? '1px solid rgba(34, 197, 94, 0.3)'
                   : '1px solid rgba(59, 130, 246, 0.3)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6
-              }}>
-                <span style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: interviewerState === 'Speaking' ? '#a855f7' : interviewerState === 'Listening' ? '#22c55e' : '#3b82f6',
-                  boxShadow: `0 0 6px ${interviewerState === 'Speaking' ? '#a855f7' : interviewerState === 'Listening' ? '#22c55e' : '#3b82f6'}`,
-                  animation: 'pulse 1.5s infinite'
-                }} />
-                {interviewerState.toUpperCase()}
-              </span>
-            </div>
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6
+            }}>
+              <span style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: interviewerState === 'Speaking' ? '#a855f7' : interviewerState === 'Listening' ? '#22c55e' : '#3b82f6',
+                boxShadow: `0 0 6px ${interviewerState === 'Speaking' ? '#a855f7' : interviewerState === 'Listening' ? '#22c55e' : '#3b82f6'}`,
+                animation: 'pulse 1.5s infinite'
+              }} />
+              {interviewerState.toUpperCase()}
+            </span>
+          </div>
 
-            {/* 3D Model Canvas area */}
-            <div style={{ flex: 1, position: 'relative' }}>
-              <AIAvatarErrorBoundary>
-                <AIAvatar aiState={interviewerState} onLoad={() => {
-                  console.log("[AIAvatar] GLB model fully loaded and dimensions calculated.");
-                  setIsGlbModelLoaded(true);
-                }} />
-              </AIAvatarErrorBoundary>
-              
-              {/* Speaking Waveform */}
-              {interviewerState === 'Speaking' && (
-                <div style={{
-                  position: 'absolute',
-                  bottom: 20,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 3,
-                  background: 'rgba(15, 23, 42, 0.65)',
-                  padding: '8px 16px',
-                  borderRadius: 999,
-                  backdropFilter: 'blur(8px)',
-                  border: '1px solid rgba(139, 92, 246, 0.3)',
-                  zIndex: 2
-                }}>
-                  <div className="wave-bar" style={{ animationDelay: '0.1s' }} />
-                  <div className="wave-bar" style={{ animationDelay: '0.3s' }} />
-                  <div className="wave-bar" style={{ animationDelay: '0.5s' }} />
-                  <div className="wave-bar" style={{ animationDelay: '0.2s' }} />
-                  <div className="wave-bar" style={{ animationDelay: '0.4s' }} />
-                  
-                  <style>{`
+          {/* 3D Model Canvas area */}
+          <div style={{ flex: 1, position: 'relative' }}>
+            <AIAvatarErrorBoundary>
+              <AIAvatar aiState={interviewerState} onLoad={() => {
+                console.log("[AIAvatar] GLB model fully loaded and dimensions calculated.");
+                setIsGlbModelLoaded(true);
+              }} />
+            </AIAvatarErrorBoundary>
+
+            {/* Speaking Waveform */}
+            {interviewerState === 'Speaking' && (
+              <div style={{
+                position: 'absolute',
+                bottom: 20,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 3,
+                background: 'rgba(15, 23, 42, 0.65)',
+                padding: '8px 16px',
+                borderRadius: 999,
+                backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(139, 92, 246, 0.3)',
+                zIndex: 2
+              }}>
+                <div className="wave-bar" style={{ animationDelay: '0.1s' }} />
+                <div className="wave-bar" style={{ animationDelay: '0.3s' }} />
+                <div className="wave-bar" style={{ animationDelay: '0.5s' }} />
+                <div className="wave-bar" style={{ animationDelay: '0.2s' }} />
+                <div className="wave-bar" style={{ animationDelay: '0.4s' }} />
+
+                <style>{`
                     .wave-bar {
                       width: 3px;
                       height: 15px;
@@ -925,128 +925,128 @@ export default function MockInterviewPage({
                       100% { height: 24px; }
                     }
                   `}</style>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT SIDE: Candidate Webcam Panel */}
+        <div style={{
+          borderRadius: 24,
+          overflow: 'hidden',
+          border: isMicActive
+            ? '2px solid rgba(34, 197, 94, 0.5)' // Green glow when mic active
+            : '2px solid rgba(255, 255, 255, 0.05)',
+          boxShadow: isMicActive
+            ? '0 0 25px rgba(34, 197, 94, 0.15)'
+            : 'none',
+          background: 'linear-gradient(145deg, #070c1f, #0d1530)',
+          display: 'flex',
+          flexDirection: 'column',
+          position: 'relative',
+          transition: 'all 0.5s ease'
+        }}>
+          {/* Header */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '16px 20px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+            background: 'rgba(255, 255, 255, 0.02)'
+          }}>
+            <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.9rem' }}>● Your Camera</span>
+            <span style={{
+              fontSize: '0.7rem',
+              fontWeight: 700,
+              letterSpacing: '0.08em',
+              padding: '4px 10px',
+              borderRadius: 999,
+              background: isMicActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+              color: isMicActive ? '#4ade80' : '#64748b',
+              border: isMicActive ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6
+            }}>
+              <span style={{
+                width: 6,
+                height: 6,
+                borderRadius: '50%',
+                background: isMicActive ? '#22c55e' : '#64748b',
+                boxShadow: isMicActive ? '0 0 6px #22c55e' : 'none'
+              }} />
+              {isMicActive ? 'LISTENING' : 'MUTED'}
+            </span>
           </div>
 
-          {/* RIGHT SIDE: Candidate Webcam Panel */}
-          <div style={{
-            borderRadius: 24,
-            overflow: 'hidden',
-            border: isMicActive
-              ? '2px solid rgba(34, 197, 94, 0.5)' // Green glow when mic active
-              : '2px solid rgba(255, 255, 255, 0.05)',
-            boxShadow: isMicActive
-              ? '0 0 25px rgba(34, 197, 94, 0.15)'
-              : 'none',
-            background: 'linear-gradient(145deg, #070c1f, #0d1530)',
-            display: 'flex',
-            flexDirection: 'column',
-            position: 'relative',
-            transition: 'all 0.5s ease'
-          }}>
-            {/* Header */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '16px 20px',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-              background: 'rgba(255, 255, 255, 0.02)'
-            }}>
-              <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.9rem' }}>● Your Camera</span>
-              <span style={{
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                letterSpacing: '0.08em',
-                padding: '4px 10px',
-                borderRadius: 999,
-                background: isMicActive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                color: isMicActive ? '#4ade80' : '#64748b',
-                border: isMicActive ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6
+          {/* Webcam Video area */}
+          <div style={{ flex: 1, position: 'relative', background: '#020617' }}>
+            {isModelLoading && (
+              <div style={{
+                position: 'absolute', inset: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: '#020617', zIndex: 1
               }}>
-                <span style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  background: isMicActive ? '#22c55e' : '#64748b',
-                  boxShadow: isMicActive ? '0 0 6px #22c55e' : 'none'
-                }} />
-                {isMicActive ? 'LISTENING' : 'MUTED'}
-              </span>
-            </div>
+                <Loader2 size={36} color="#8B5CF6" className="animate-spin" />
+              </div>
+            )}
 
-            {/* Webcam Video area */}
-            <div style={{ flex: 1, position: 'relative', background: '#020617' }}>
-              {isModelLoading && (
+            {cameraError && (
+              <div style={{
+                position: 'absolute', inset: 0,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                background: '#020617', zIndex: 1, color: '#fff', gap: 12
+              }}>
                 <div style={{
-                  position: 'absolute', inset: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: '#020617', zIndex: 1
+                  width: 64, height: 64, borderRadius: '50%',
+                  background: 'rgba(239,68,68,0.1)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}>
-                  <Loader2 size={36} color="#8B5CF6" className="animate-spin" />
+                  <AlertTriangle size={32} color="#ef4444" />
                 </div>
-              )}
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 600 }}>Camera unavailable</h3>
+                <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Please allow camera access to continue.</p>
+              </div>
+            )}
 
-              {cameraError && (
-                <div style={{
-                  position: 'absolute', inset: 0,
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  background: '#020617', zIndex: 1, color: '#fff', gap: 12
-                }}>
-                  <div style={{
-                    width: 64, height: 64, borderRadius: '50%',
-                    background: 'rgba(239,68,68,0.1)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}>
-                    <AlertTriangle size={32} color="#ef4444" />
-                  </div>
-                  <h3 style={{ fontSize: '1.2rem', fontWeight: 600 }}>Camera unavailable</h3>
-                  <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Please allow camera access to continue.</p>
-                </div>
-              )}
 
-              
-              <video
-                ref={videoRef}
-                onLoadedData={handleVideoLoad}
-                autoPlay playsInline muted
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  transform: 'scaleX(-1)'
-                }}
-              />
+            <video
+              ref={videoRef}
+              onLoadedData={handleVideoLoad}
+              autoPlay playsInline muted
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                transform: 'scaleX(-1)'
+              }}
+            />
 
-              {/* Proctoring Warning overlays inside Webcam Panel */}
-              {lookingAway && (
-                <div style={{
-                  position: 'absolute',
-                  top: 16,
-                  left: 16,
-                  padding: '6px 12px',
-                  background: 'rgba(239, 68, 68, 0.9)',
-                  color: '#fff',
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  borderRadius: 8,
-                  boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
-                  zIndex: 2,
-                  animation: 'pulse 1s infinite'
-                }}>
-                  ⚠ AI WARNING: LOOKING AWAY
-                </div>
-              )}
+            {/* Proctoring Warning overlays inside Webcam Panel */}
+            {lookingAway && (
+              <div style={{
+                position: 'absolute',
+                top: 16,
+                left: 16,
+                padding: '6px 12px',
+                background: 'rgba(239, 68, 68, 0.9)',
+                color: '#fff',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                borderRadius: 8,
+                boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
+                zIndex: 2,
+                animation: 'pulse 1s infinite'
+              }}>
+                ⚠ AI WARNING: LOOKING AWAY
+              </div>
+            )}
 
-              {/* Subtitles removed based on user request */}
-            </div>
+            {/* Subtitles removed based on user request */}
           </div>
         </div>
       </div>
+    </div>
   );
 }
