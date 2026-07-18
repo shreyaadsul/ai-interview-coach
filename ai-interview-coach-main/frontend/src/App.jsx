@@ -21,6 +21,8 @@ import LoginPage from './components/LoginPage';
 import { motion } from 'framer-motion';
 import { Loader2, FileText, Target, CheckCircle2, TrendingUp, Video, Award, ChevronRight, Play, Upload, BookOpen } from 'lucide-react';
 
+const API = import.meta.env.VITE_API_URL;
+
 function App() {
   const [currentPage, setCurrentPage] = useState('Dashboard');
   const [globalMediaStream, setGlobalMediaStream] = useState(null);
@@ -47,7 +49,7 @@ function App() {
     
     // Attempt to save user profile to MongoDB
     try {
-      await fetch("http://localhost:5000/api/user/save", {
+      await fetch(`${API}/api/user/save`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(profile)
@@ -121,7 +123,7 @@ function App() {
 
       // Load History
       try {
-        const response = await fetch(`http://localhost:5000/api/interviews?user_id=${encodeURIComponent(userId)}`);
+        const response = await fetch(`${API}/api/interviews?user_id=${encodeURIComponent(userId)}`);
         if (response.ok) {
           const data = await response.json();
           if (data.history) {
@@ -134,7 +136,7 @@ function App() {
 
       // Load Resume Analysis
       try {
-        const response = await fetch(`http://localhost:5000/api/resume?user_id=${encodeURIComponent(userId)}`);
+        const response = await fetch(`${API}/api/resume?user_id=${encodeURIComponent(userId)}`);
         if (response.ok) {
           const data = await response.json();
           const { user_id, ...cleanData } = data;
@@ -146,7 +148,7 @@ function App() {
 
       // Load Career Insights
       try {
-        const response = await fetch(`http://localhost:5000/api/career-insights?user_id=${encodeURIComponent(userId)}`);
+        const response = await fetch(`${API}/api/career-insights?user_id=${encodeURIComponent(userId)}`);
         if (response.ok) {
           const data = await response.json();
           setCareerInsights(data);
@@ -157,7 +159,7 @@ function App() {
 
       // Load User Settings / Profile (to sync avatar and profile photo)
       try {
-        const response = await fetch(`http://localhost:5000/api/settings?user_id=${encodeURIComponent(userId)}`);
+        const response = await fetch(`${API}/api/settings?user_id=${encodeURIComponent(userId)}`);
         if (response.ok) {
           const data = await response.json();
           if (data.profile) {
@@ -230,7 +232,7 @@ function App() {
   const fetchDashboardData = async () => {
     if (!userProfile?.email) return;
     try {
-      const response = await fetch(`http://localhost:5000/api/dashboard?user_id=${encodeURIComponent(userProfile.email)}`);
+      const response = await fetch(`${API}/api/dashboard?user_id=${encodeURIComponent(userProfile.email)}`);
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
@@ -314,7 +316,7 @@ function App() {
     setResumeData(parsedResumeData);
 
     try {
-      const response = await fetch("http://localhost:5000/api/career-insights", {
+      const response = await fetch(`${API}/api/career-insights`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -381,7 +383,7 @@ function App() {
       return;
     }
     try {
-      const response = await fetch("http://localhost:5000/api/evaluate-interview", {
+      const response = await fetch(`${API}/api/evaluate-interview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ questions, answers })
@@ -391,7 +393,7 @@ function App() {
         
         let careerCoachData = null;
         try {
-          const coachRes = await fetch("http://localhost:5000/api/career-coach", {
+          const coachRes = await fetch(`${API}/api/career-coach`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -436,7 +438,7 @@ function App() {
         
         // Save to MongoDB
         try {
-          await fetch("http://localhost:5000/api/interview/save", {
+          await fetch(`${API}/api/interview/save`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -492,7 +494,7 @@ function App() {
             let reportToUse = session.report;
             if (!reportToUse && session.id) {
               try {
-                const response = await fetch(`http://localhost:5000/api/interview/${session.id}?user_id=${encodeURIComponent(userProfile?.email || "")}`);
+                const response = await fetch(`${API}/api/interview/${session.id}?user_id=${encodeURIComponent(userProfile?.email || "")}`);
                 if (response.ok) {
                   const data = await response.json();
                   reportToUse = data.report;
@@ -974,7 +976,7 @@ function App() {
                   // If report isn't embedded, try to fetch from MongoDB
                   if (!reportToUse && session.id) {
                     try {
-                      const response = await fetch(`http://localhost:5000/api/interview/${session.id}?user_id=${encodeURIComponent(userProfile?.email || "")}`);
+                      const response = await fetch(`${API}/api/interview/${session.id}?user_id=${encodeURIComponent(userProfile?.email || "")}`);
                       if (response.ok) {
                         const data = await response.json();
                         reportToUse = data.report;

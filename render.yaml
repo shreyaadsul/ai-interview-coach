@@ -1,0 +1,19 @@
+# Render Blueprint configuration for deploying the Flask backend
+services:
+  - type: web
+    name: ai-interview-coach-backend
+    env: python
+    rootDirectory: ai-interview-coach-main
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: FLASK_DEBUG
+        value: "False"
+      - key: MONGO_URI
+        sync: false # Set this in Render Dashboard to your MongoDB connection string
+      - key: GROQ_API_KEY
+        sync: false # Set this in Render Dashboard to your Groq API key
+      - key: FRONTEND_URL
+        sync: false # Set this in Render Dashboard to your deployed Vercel frontend URL

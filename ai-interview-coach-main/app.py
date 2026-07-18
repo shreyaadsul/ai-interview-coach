@@ -11,7 +11,15 @@ from database import get_db, is_db_available
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
+
+# Configure CORS dynamically for local development and production (Vercel)
+allowed_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+frontend_url = os.getenv("FRONTEND_URL")
+if frontend_url:
+    origins_list = [origin.strip() for origin in frontend_url.split(",")]
+    allowed_origins.extend(origins_list)
+
+CORS(app, resources={r"/api/*": {"origins": allowed_origins}}, supports_credentials=True)
 
 def get_request_user_id():
     if request.is_json:
@@ -1338,4 +1346,6 @@ def save_settings():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    port = int(os.getenv("PORT", 5000))
+    debug = os.getenv("FLASK_DEBUG", "True").lower() in ("true", "1", "t")
+    app.run(host="0.0.0.0", port=port, debug=debug)

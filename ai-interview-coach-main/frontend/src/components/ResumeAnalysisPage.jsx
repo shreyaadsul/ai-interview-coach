@@ -2,6 +2,8 @@ import React, { useState, useRef } from 'react';
 import axios from 'axios';
 import { FileText, Upload, CheckCircle2, User, GraduationCap, Briefcase, FolderGit2 } from 'lucide-react';
 
+const API = import.meta.env.VITE_API_URL;
+
 export default function ResumeAnalysisPage({ resumeData, onAnalysisSuccess }) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [errorToast, setErrorToast] = useState("");
@@ -32,7 +34,7 @@ export default function ResumeAnalysisPage({ resumeData, onAnalysisSuccess }) {
     }
 
     try {
-      const response = await axios.post("http://localhost:5000/api/analyze-resume", formData, {
+      const response = await axios.post(`${API}/api/analyze-resume`, formData, {
         headers: {
           "Content-Type": "multipart/form-data"
         }
@@ -49,11 +51,15 @@ export default function ResumeAnalysisPage({ resumeData, onAnalysisSuccess }) {
       }
     } catch (err) {
       console.error(err);
-      const status = err.response?.status;
-      if (status === 502 || status === 500) {
-        showToast("AI service temporarily unavailable.");
+      if (!err.response) {
+        showToast(`Could not connect to the backend server. Please ensure the backend is running at ${API}.`);
       } else {
-        showToast("Resume analysis failed. Please try again.");
+        const status = err.response?.status;
+        if (status === 502 || status === 500) {
+          showToast("AI service temporarily unavailable.");
+        } else {
+          showToast("Resume analysis failed. Please try again.");
+        }
       }
     } finally {
       setIsAnalyzing(false);

@@ -5,6 +5,8 @@ import KeywordBadge from './KeywordBadge';
 import SuggestionCard from './SuggestionCard';
 import { ArrowLeft, RefreshCw, FileText } from 'lucide-react';
 
+const API = import.meta.env.VITE_API_URL;
+
 export default function ATSCheckerPage({ setResumeData, onAtsComplete }) {
   const [isUploaded, setIsUploaded] = useState(false);
   const [fileName, setFileName] = useState('');
@@ -32,7 +34,7 @@ export default function ATSCheckerPage({ setResumeData, onAtsComplete }) {
     }
 
     try {
-      const response = await fetch("http://localhost:5000/api/ats-checker", {
+      const response = await fetch(`${API}/api/ats-checker`, {
         method: "POST",
         body: formData
       });
@@ -60,7 +62,7 @@ export default function ATSCheckerPage({ setResumeData, onAtsComplete }) {
       }
     } catch (err) {
       console.error(err);
-      alert("ATS Analysis failed. Please make sure the AI backend is running.");
+      alert(`ATS Analysis failed. The backend server is unreachable. Please ensure the backend is running at ${API}.`);
       setAnalysisResult({
         atsScore: 0,
         missingKeywords: [],

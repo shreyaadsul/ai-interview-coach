@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  X, Lock, Bell, Trash, ShieldAlert, User, Sliders, Video, 
-  Smartphone, LogOut, Check, Plus, Download, Camera, Mic, Volume2
-} from 'lucide-react';
+import { User, Bell, Lock, Shield, Eye, EyeOff, Save, Trash2, Key, Globe, MessageSquare, X, Smartphone, LogOut, Check, Plus, Download, Camera, Mic, Volume2 } from 'lucide-react';
+
+const API = import.meta.env.VITE_API_URL;
 
 // Helper: Custom Chips Input for Skills and Weak Areas
 const ChipsInput = ({ label, items = [], onChange, placeholder }) => {
@@ -188,7 +187,7 @@ export default function SettingsPage({ onProfileUpdate }) {
     const loadSettings = async () => {
       if (!userId) return;
       try {
-        const response = await fetch(`http://localhost:5000/api/settings?user_id=${encodeURIComponent(userId)}`);
+        const response = await fetch(`${API}/api/settings?user_id=${encodeURIComponent(userId)}`);
         if (response.ok) {
           const data = await response.json();
           if (data.profile) {
@@ -232,7 +231,7 @@ export default function SettingsPage({ onProfileUpdate }) {
 
     if (userId) {
       try {
-        const response = await fetch("http://localhost:5000/api/settings", {
+        const response = await fetch(`${API}/api/settings`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

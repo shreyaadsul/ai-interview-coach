@@ -4,6 +4,8 @@ import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision';
 import { motion, AnimatePresence } from 'framer-motion';
 import AIAvatar from './AIAvatar';
 
+const API = import.meta.env.VITE_API_URL;
+
 // ─── Text Cleanup Utility ─────────────────────────────────────────────────────
 const cleanText = (text) => {
   if (!text) return "";
@@ -429,7 +431,7 @@ export default function MockInterviewPage({
         question: q,
         answer: updatedAnswers[i + 1] || 'No answer provided.',
       }));
-      const res = await fetch('http://localhost:5000/api/next-question', {
+      const res = await fetch(`${API}/api/next-question`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -448,6 +450,7 @@ export default function MockInterviewPage({
       }
     } catch (err) {
       console.error('Failed to generate next question', err);
+      alert(`Failed to retrieve the next question from the AI server. Please ensure the backend is running at ${API}.`);
     } finally {
       setIsGenerating(false);
     }

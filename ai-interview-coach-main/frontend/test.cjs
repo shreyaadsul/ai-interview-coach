@@ -10,7 +10,8 @@ const fs = require('fs');
   
   const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
-  await page.goto('http://localhost:5173/');
+  const targetUrl = process.env.TEST_TARGET_URL || 'http://localhost:5173/';
+  await page.goto(targetUrl);
   await wait(2000);
   await page.screenshot({ path: 'step1_home.png' });
   

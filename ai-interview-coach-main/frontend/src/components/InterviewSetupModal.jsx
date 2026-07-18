@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { X, Play, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const API = import.meta.env.VITE_API_URL;
+
 export default function InterviewSetupModal({ isOpen, onClose, onStart, resumeData }) {
   const [targetRole, setTargetRole] = useState(resumeData?.suggested_roles?.[0] || 'AI Engineer');
   const [interviewType, setInterviewType] = useState('Mixed');
@@ -20,7 +22,7 @@ export default function InterviewSetupModal({ isOpen, onClose, onStart, resumeDa
     };
 
     try {
-      const response = await fetch("http://localhost:5000/api/generate-questions", {
+      const response = await fetch(`${API}/api/generate-questions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ resume_data: resumeData, ...config }),
@@ -35,6 +37,7 @@ export default function InterviewSetupModal({ isOpen, onClose, onStart, resumeDa
       }
     } catch (err) {
       console.error(err);
+      alert(`Failed to generate personalized questions. The backend server is unreachable. Please verify it is running at ${API}.`);
     } finally {
       setIsGenerating(false);
     }

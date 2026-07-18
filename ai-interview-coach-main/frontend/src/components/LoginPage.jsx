@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Bot, LogIn, ArrowRight, ArrowLeft, Check, Loader2, 
-  User, Mail, Lock, GraduationCap, Calendar, Briefcase, 
-  Code, AlertCircle, Sparkles, Smile, Eye, EyeOff 
+  Loader2, Mail, Lock, User, Calendar, GraduationCap, Briefcase, 
+  ChevronRight, ChevronLeft, Eye, EyeOff, AlertCircle, Bot, 
+  ArrowRight, ArrowLeft, Check, Sparkles, Smile 
 } from 'lucide-react';
 import { auth, googleProvider, signInWithPopup } from '../lib/firebase';
+
+const API = import.meta.env.VITE_API_URL;
 
 const SUGGESTED_SKILLS = [
   "Python", "JavaScript", "React", "Node.js", "Java", "C++", 
@@ -42,7 +44,7 @@ export default function LoginPage({ onLogin }) {
       
       let response;
       try {
-        response = await fetch("http://localhost:5000/api/user/google-login", {
+        response = await fetch(`${API}/api/user/google-login`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -57,7 +59,7 @@ export default function LoginPage({ onLogin }) {
         if (!navigator.onLine) {
           throw new Error("Network error: You are offline. Please check your internet connection.");
         } else {
-          throw new Error("Backend server is unavailable or CORS request was blocked. Please ensure the backend is running at http://localhost:5000.");
+          throw new Error(`Backend server is unavailable or CORS request was blocked. Please ensure the backend is running at ${API}.`);
         }
       }
       
@@ -293,11 +295,17 @@ export default function LoginPage({ onLogin }) {
         areasOfDevelopment: formData.weakAreas
       };
 
-      const response = await fetch("http://localhost:5000/api/user/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+      let response;
+      try {
+        response = await fetch(`${API}/api/user/save`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+      } catch (netErr) {
+        console.error(netErr);
+        throw new Error(`Cannot connect to the authentication server. Please check your network or ensure the backend is running at ${API}.`);
+      }
 
       const data = await response.json();
       if (!response.ok) {
@@ -338,14 +346,20 @@ export default function LoginPage({ onLogin }) {
     setError('');
 
     try {
-      const response = await fetch("http://localhost:5000/api/user/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: loginFormData.email,
-          password: loginFormData.password
-        })
-      });
+      let response;
+      try {
+        response = await fetch(`${API}/api/user/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: loginFormData.email,
+            password: loginFormData.password
+          })
+        });
+      } catch (netErr) {
+        console.error(netErr);
+        throw new Error(`Cannot connect to the login server. Please ensure the backend is running at ${API}.`);
+      }
 
       const data = await response.json();
       if (!response.ok) {
