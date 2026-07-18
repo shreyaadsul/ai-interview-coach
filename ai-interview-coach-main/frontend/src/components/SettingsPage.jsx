@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { User, Bell, Lock, Shield, Eye, EyeOff, Save, Trash2, Key, Globe, MessageSquare, X, Smartphone, LogOut, Check, Plus, Download, Camera, Mic, Volume2 } from 'lucide-react';
+import { 
+  X, Lock, Bell, Trash, ShieldAlert, User, Sliders, Video, 
+  Smartphone, LogOut, Check, Plus, Download, Camera, Mic, Volume2
+} from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL;
 
