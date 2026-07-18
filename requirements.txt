@@ -5,3 +5,8 @@ langchain-community
 openai
 langchain-openai
 langchain-groq
+flask
+flask-cors
+pdfplumber
+groq
+gunicorn
